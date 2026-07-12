@@ -1,0 +1,2 @@
+VITE_SUPABASE_URL=https://djmdiujbdjlejbotmkpc.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_REesA3sFkl9tAlaJM5yX8g_9N_KST3_
