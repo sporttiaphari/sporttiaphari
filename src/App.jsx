@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getKV, setKV, subscribeKV } from "./db";
+import { getKV, setKV, subscribeKV, submitSuggestion, fetchSuggestions, deleteSuggestion, subscribeSuggestions } from "./db";
 import { supabase } from "./supabaseClient";
 
 // tokens: bg #14161A, elev #1D2027, text #EDEFF3, muted #767C89
@@ -9,20 +9,72 @@ function fmtDateLabel(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-const emptyMatch = () => ({ id: crypto.randomUUID(), time: "", teamA: "", teamB: "", title: "", liveOn: "", followedBy: false });
+// Satu "hari siaran" dihitung dari jam 06:00 s.d. 05:59 keesokan harinya
+// (kayak jadwal TV), bukan per tanggal kalender biasa. Jadi pertandingan
+// jam 01:00 tanggal 13 sebenernya masih masuk hari siaran tanggal 12.
+function getBroadcastDate(dateStr, timeStr) {
+  if (!timeStr) return dateStr; // match FB tanpa jam, pakai tanggal apa adanya
+  const hour = parseInt(timeStr.split(":")[0], 10);
+  if (Number.isNaN(hour) || hour >= 6) return dateStr;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d); // dibikin di waktu lokal, bukan UTC
+  date.setDate(date.getDate() - 1);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+// "Hari ini" versi tanggal lokal (bukan UTC) — penting krusial di sini,
+// soalnya kalau dipake tengah malam/dini hari, toISOString() bisa salah
+// mundur satu hari karena dia convert ke UTC dulu.
+function todayLocalDate() {
+  const d = new Date();
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+const emptyMatch = () => ({
+  id: crypto.randomUUID(),
+  time: "",
+  teamA: "",
+  teamB: "",
+  title: "",
+  liveOns: [""],
+  followedBy: false,
+});
 const emptyEvent = () => ({
   id: crypto.randomUUID(),
   name: "",
   round: "",
   logo: "",
-  broadcaster: "",
+  broadcasters: [""],
   format: "versus", // "versus" (Tim A vs Tim B) or "single" (mis. balapan, satu sesi/entri)
-  date: new Date().toISOString().slice(0, 10),
+  date: todayLocalDate(),
   matches: [emptyMatch()],
 });
+
+// Data lama nyimpen LIVE ON sebagai satu string (broadcaster/liveOn).
+// Fungsi ini migrasiin ke bentuk array baru, jadi event/jadwal lama tetap
+// kebaca normal walau formatnya sekarang mendukung banyak channel sekaligus.
+function normalizeEvent(ev) {
+  const broadcasters =
+    ev.broadcasters && ev.broadcasters.length
+      ? ev.broadcasters
+      : ev.broadcaster
+      ? [ev.broadcaster]
+      : [""];
+  const matches = (ev.matches || []).map((m) => ({
+    ...m,
+    liveOns: m.liveOns && m.liveOns.length ? m.liveOns : m.liveOn ? [m.liveOn] : [""],
+  }));
+  return { ...ev, broadcasters, matches };
+}
 
 function readImageFile(file, onDone) {
   if (!file) return;
@@ -93,17 +145,75 @@ export default function JadwalOlahraga() {
   const [loginPassword, setLoginPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [customLogos, setCustomLogos] = useState({});
+  const [eventLogos, setEventLogos] = useState({});
   const [logoModalOpen, setLogoModalOpen] = useState(false);
+  const [eventLogoModalOpen, setEventLogoModalOpen] = useState(false);
   const [logoNameInput, setLogoNameInput] = useState("");
   const [logoUrlInput, setLogoUrlInput] = useState("");
+  const [eventLogoNameInput, setEventLogoNameInput] = useState("");
+  const [eventLogoUrlInput, setEventLogoUrlInput] = useState("");
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const [suggestModalOpen, setSuggestModalOpen] = useState(false);
+  const [suggestMessage, setSuggestMessage] = useState("");
+  const [suggestContact, setSuggestContact] = useState("");
+  const [suggestSending, setSuggestSending] = useState(false);
+  const [inboxModalOpen, setInboxModalOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
 
   const lookupBroadcasterLogo = makeLogoLookup(customLogos);
 
+  const handleLogoClick = () => {
+    const next = logoClickCount + 1;
+    setLogoClickCount(next);
+    if (next >= 5) {
+      setLogoClickCount(0);
+      setDevModalOpen(true);
+    } else {
+      clearTimeout(window.__logoClickTimer);
+      window.__logoClickTimer = setTimeout(() => setLogoClickCount(0), 2000);
+    }
+  };
+
+  const loadSuggestions = async () => {
+    try {
+      const rows = await fetchSuggestions();
+      setSuggestions(rows);
+    } catch (e) {
+      /* bukan admin, atau belum ada tabel suggestions */
+    }
+  };
+
+  const handleSubmitSuggestion = async () => {
+    if (!suggestMessage.trim()) return;
+    setSuggestSending(true);
+    try {
+      await submitSuggestion(suggestMessage.trim(), suggestContact.trim());
+      setSuggestMessage("");
+      setSuggestContact("");
+      setSuggestModalOpen(false);
+      setToast("Saran terkirim, makasih!");
+      setTimeout(() => setToast(""), 2500);
+    } catch (e) {
+      setToast("Gagal kirim saran, coba lagi");
+      setTimeout(() => setToast(""), 2500);
+    }
+    setSuggestSending(false);
+  };
+
+  const handleDeleteSuggestion = async (id) => {
+    try {
+      await deleteSuggestion(id);
+      setSuggestions((s) => s.filter((x) => x.id !== id));
+    } catch (e) {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     // isAdmin sekarang beneran ditentuin sama sesi login Supabase Auth +
-    // email-nya harus cocok ADMIN_EMAIL. Supabase nyimpen sesinya sendiri
-    // (di localStorage juga sebenernya), jadi begitu lo login sekali, tetap
-    // login walau browser ditutup, sampai lo logout manual.
+    // email-nya harus cocok ADMIN_EMAIL. Supabase nyimpen sesinya sendiri,
+    // jadi begitu lo login sekali, tetap login walau browser ditutup,
+    // sampai lo logout manual.
     supabase.auth.getSession().then(({ data }) => {
       const email = data?.session?.user?.email;
       setIsAdmin(!!email && email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
@@ -121,16 +231,54 @@ export default function JadwalOlahraga() {
       } catch (e) {
         /* no custom logos yet, or Supabase belum dikonfigurasi */
       }
+      try {
+        const el = await getKV("eventLogos");
+        if (el) setEventLogos(el);
+      } catch (e) {
+        /* no event logos yet */
+      }
     })();
 
-    // realtime: kalau ada developer lain nambah/ubah logo channel, semua
+    // realtime: developer di device lain nambah/ubah logo -> semua
     // pengunjung yang lagi buka situs ikut ke-update tanpa refresh
-    const unsub = subscribeKV("broadcasterLogos", (value) => setCustomLogos(value || {}));
+    const unsubBroadcaster = subscribeKV("broadcasterLogos", (value) => setCustomLogos(value || {}));
+    const unsubEventLogos = subscribeKV("eventLogos", (value) => setEventLogos(value || {}));
     return () => {
-      unsub();
+      unsubBroadcaster();
+      unsubEventLogos();
       listener?.subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadSuggestions();
+    const unsub = subscribeSuggestions(loadSuggestions);
+    return () => unsub();
+  }, [isAdmin]);
+
+  const saveEventLogo = async (name, logo) => {
+    const key = name.trim().toLowerCase();
+    if (!key || !logo) return;
+    const next = { ...eventLogos, [key]: logo };
+    setEventLogos(next);
+    try {
+      await setKV("eventLogos", next);
+    } catch (e) {
+      /* ignore, still usable this session */
+    }
+  };
+
+  const removeEventLogo = async (name) => {
+    const next = { ...eventLogos };
+    delete next[name];
+    setEventLogos(next);
+    try {
+      await setKV("eventLogos", next);
+    } catch (e) {
+      /* ignore */
+    }
+  };
 
   const saveCustomLogo = async () => {
     const name = logoNameInput.trim().toLowerCase();
@@ -218,16 +366,12 @@ export default function JadwalOlahraga() {
         }
       }
 
+      // migrasi data lama (LIVE ON single string) ke format array baru
+      loaded = loaded.map(normalizeEvent);
+
       setEvents(loaded);
       setLoading(false);
     })();
-
-    // realtime: developer nambah/edit/hapus event di device lain -> semua
-    // pengunjung yang lagi buka situs ikut ke-update otomatis
-    const unsub = subscribeKV("events", (value) => {
-      if (value) setEvents(value);
-    });
-    return () => unsub();
   }, []);
 
   function wimbledonDemoEvent() {
@@ -236,7 +380,7 @@ export default function JadwalOlahraga() {
       name: "WIMBLEDON",
       logo: "data:image/png;base64,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",
       broadcaster: "SPOTV NOW",
-      date: new Date().toISOString().slice(0, 10),
+      date: todayLocalDate(),
       matches: [
         // Centre Court (start 13:30 BST -> 19:30 WIB, next two are estimates)
         { id: crypto.randomUUID(), time: "19:30", teamA: "Novak Djokovic", teamB: "Arthur Rinderknech", liveOn: "SPOTV" },
@@ -257,7 +401,7 @@ export default function JadwalOlahraga() {
         name: "FIFA WORLD CUP 26",
         logo: "https://www.google.com/s2/favicons?sz=128&domain=fifa.com",
         broadcaster: "",
-        date: new Date().toISOString().slice(0, 10),
+        date: todayLocalDate(),
         matches: [
           { id: crypto.randomUUID(), time: "01:00", teamA: "Australia", teamB: "Egypt", liveOn: "" },
           { id: crypto.randomUUID(), time: "05:00", teamA: "Argentina", teamB: "Cabo Verde", liveOn: "" },
@@ -284,9 +428,11 @@ export default function JadwalOlahraga() {
   };
 
   const openEditEvent = (ev) => {
+    const normalized = normalizeEvent(ev);
     setDraft({
-      ...ev,
-      matches: ev.matches.map((m) => ({ ...m })),
+      ...normalized,
+      matches: normalized.matches.map((m) => ({ ...m, liveOns: [...m.liveOns] })),
+      broadcasters: [...normalized.broadcasters],
     });
     setEditingEventId(ev.id);
     setModalOpen(true);
@@ -312,10 +458,14 @@ export default function JadwalOlahraga() {
       setModalOpen(false);
       return;
     }
-    const cleanMatches = draft.matches.filter(
-      (m) => (m.time || m.followedBy) && (m.teamA || m.teamB || m.title)
-    );
-    const cleaned = { ...draft, matches: cleanMatches };
+    const cleanMatches = draft.matches
+      .filter((m) => (m.time || m.followedBy) && (m.teamA || m.teamB || m.title))
+      .map((m) => ({ ...m, liveOns: m.liveOns.map((x) => x.trim()).filter(Boolean) }));
+    const cleanBroadcasters = draft.broadcasters.map((b) => b.trim()).filter(Boolean);
+    const cleaned = { ...draft, matches: cleanMatches, broadcasters: cleanBroadcasters };
+    if (cleaned.logo) {
+      saveEventLogo(cleaned.name, cleaned.logo);
+    }
     const next = editingEventId
       ? events.map((e) => (e.id === editingEventId ? cleaned : e))
       : [...events, cleaned];
@@ -330,11 +480,22 @@ export default function JadwalOlahraga() {
     await persist(events.filter((e) => e.id !== id));
   };
 
-  // group by date across all events
+  // group by "hari siaran" (06:00-05:59), bukan per event secara utuh —
+  // matches dalam satu event bisa kepisah ke 2 hari siaran kalau ada yang
+  // sebelum & sesudah jam 6 pagi
   const byDate = {};
   events.forEach((ev) => {
-    if (!byDate[ev.date]) byDate[ev.date] = [];
-    byDate[ev.date].push(ev);
+    if (ev.matches.length === 0) {
+      if (!byDate[ev.date]) byDate[ev.date] = {};
+      if (!byDate[ev.date][ev.id]) byDate[ev.date][ev.id] = { event: ev, matches: [] };
+      return;
+    }
+    ev.matches.forEach((m) => {
+      const bd = getBroadcastDate(ev.date, m.time);
+      if (!byDate[bd]) byDate[bd] = {};
+      if (!byDate[bd][ev.id]) byDate[bd][ev.id] = { event: ev, matches: [] };
+      byDate[bd][ev.id].matches.push(m);
+    });
   });
   const sortedDates = Object.keys(byDate).sort();
 
@@ -352,13 +513,16 @@ export default function JadwalOlahraga() {
 
       <header style={styles.header}>
         <div style={styles.brandRow}>
-          <img src={BRAND_LOGO} alt="@sporttiaphari" style={styles.brandLogo} />
+          <img
+            src={BRAND_LOGO}
+            alt="@sporttiaphari"
+            style={styles.brandLogo}
+            onClick={handleLogoClick}
+          />
           <div>
             <div style={styles.eyebrow}>JADWAL OLAHRAGA</div>
             <div style={styles.headline}>@sporttiaphari</div>
-            <div style={styles.publicBadge}>
-              {isAdmin ? "● DEVELOPER MODE — kamu bisa edit & hapus" : "● PUBLIK — mode lihat saja"}
-            </div>
+            {isAdmin && <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>}
           </div>
         </div>
         <div style={styles.headerActions}>
@@ -370,13 +534,19 @@ export default function JadwalOlahraga() {
               <button style={styles.lockBtn} onClick={() => setLogoModalOpen(true)}>
                 Logo Channel
               </button>
+              <button style={styles.lockBtn} onClick={() => setEventLogoModalOpen(true)}>
+                Logo Event
+              </button>
+              <button style={styles.lockBtn} onClick={() => setInboxModalOpen(true)}>
+                Saran Masuk{suggestions.length > 0 ? ` (${suggestions.length})` : ""}
+              </button>
               <button style={styles.lockBtn} onClick={lockAdmin}>
                 Kunci
               </button>
             </>
           ) : (
-            <button style={styles.devToggleBtn} onClick={() => setDevModalOpen(true)}>
-              Login
+            <button style={styles.devToggleBtn} onClick={() => setSuggestModalOpen(true)}>
+              Kasih Saran
             </button>
           )}
         </div>
@@ -390,8 +560,10 @@ export default function JadwalOlahraga() {
 
       {sortedDates.map((date) => (
         <section key={date} style={styles.dateBlock}>
-          <div style={styles.dateLabel}>{fmtDateLabel(date)}</div>
-          {byDate[date].map((ev) => (
+          <div style={styles.dateLabel}>
+            {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 WIB</span>
+          </div>
+          {Object.values(byDate[date]).map(({ event: ev, matches }) => (
             <div key={ev.id} style={styles.eventCard}>
               <div style={styles.eventHeaderRow}>
                 <div style={styles.eventHeaderLeft}>
@@ -417,18 +589,27 @@ export default function JadwalOlahraga() {
                   <div style={styles.eventTitleCol}>
                     <div style={styles.eventName}>{ev.name}</div>
                     {ev.round && <div style={styles.eventRound}>{ev.round}</div>}
-                    {ev.broadcaster && (
+                    {ev.broadcasters && ev.broadcasters.filter(Boolean).length > 0 && (
                       <div style={styles.liveOnRow}>
                         <span style={styles.liveOnLabel}>LIVE ON</span>
-                        {lookupBroadcasterLogo(ev.broadcaster) ? (
-                          <img
-                            src={lookupBroadcasterLogo(ev.broadcaster)}
-                            alt=""
-                            style={styles.liveOnLogo}
-                            onError={(e) => (e.target.style.display = "none")}
-                          />
-                        ) : null}
-                        <span style={styles.liveOnValue}>{ev.broadcaster}</span>
+                        {ev.broadcasters
+                          .filter(Boolean)
+                          .map((b, i, arr) => (
+                            <span key={i} style={styles.liveOnChannelChip}>
+                              {lookupBroadcasterLogo(b) ? (
+                                <img
+                                  src={lookupBroadcasterLogo(b)}
+                                  alt=""
+                                  style={styles.liveOnLogo}
+                                  onError={(e) => (e.target.style.display = "none")}
+                                />
+                              ) : null}
+                              <span style={styles.liveOnValue}>
+                                {b}
+                                {i < arr.length - 1 ? "," : ""}
+                              </span>
+                            </span>
+                          ))}
                       </div>
                     )}
                   </div>
@@ -445,7 +626,7 @@ export default function JadwalOlahraga() {
                 )}
               </div>
               <div style={styles.matchList}>
-                {ev.matches.map((m) => (
+                {matches.map((m) => (
                     <div key={m.id} style={styles.matchRow}>
                       <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
                         {m.followedBy ? "FB" : m.time}
@@ -459,23 +640,30 @@ export default function JadwalOlahraga() {
                           </>
                         )}
                       </span>
-                      {m.liveOn && (
+                      {m.liveOns && m.liveOns.filter(Boolean).length > 0 && (
                         <span style={styles.matchLiveOn}>
-                          <span style={styles.matchLiveOnLabel}>LIVE ON</span>
-                          {lookupBroadcasterLogo(m.liveOn) ? (
-                            <img
-                              src={lookupBroadcasterLogo(m.liveOn)}
-                              alt=""
-                              style={styles.matchLiveOnLogo}
-                              onError={(e) => (e.target.style.display = "none")}
-                            />
-                          ) : null}{" "}
-                          {m.liveOn}
+                          <span style={styles.matchLiveOnLabel}>LIVE ON</span>{" "}
+                          {m.liveOns
+                            .filter(Boolean)
+                            .map((lv, i, arr) => (
+                              <span key={i} style={styles.matchLiveOnChannelChip}>
+                                {lookupBroadcasterLogo(lv) ? (
+                                  <img
+                                    src={lookupBroadcasterLogo(lv)}
+                                    alt=""
+                                    style={styles.matchLiveOnLogo}
+                                    onError={(e) => (e.target.style.display = "none")}
+                                  />
+                                ) : null}
+                                {lv}
+                                {i < arr.length - 1 ? "," : ""}
+                              </span>
+                            ))}
                         </span>
                       )}
                     </div>
                   ))}
-                {ev.matches.length === 0 && (
+                {matches.length === 0 && (
                   <div style={styles.mutedSmall}>Belum ada pertandingan</div>
                 )}
               </div>
@@ -492,7 +680,16 @@ export default function JadwalOlahraga() {
               style={styles.input}
               placeholder="Nama event (mis. FIFA WORLD CUP 26)"
               value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              onChange={(e) => {
+                const name = e.target.value;
+                const key = name.trim().toLowerCase();
+                const known = eventLogos[key];
+                setDraft((d) => ({
+                  ...d,
+                  name,
+                  logo: !d.logo && known ? known : d.logo,
+                }));
+              }}
             />
             <input
               style={styles.input}
@@ -541,12 +738,44 @@ export default function JadwalOlahraga() {
                 </button>
               </div>
             )}
-            <input
-              style={styles.input}
-              placeholder="Live on (mis. RCTI, Vidio, ESPN)"
-              value={draft.broadcaster}
-              onChange={(e) => setDraft({ ...draft, broadcaster: e.target.value })}
-            />
+            <div style={styles.matchEditorLabel}>
+              Live On (bisa lebih dari satu channel, mis. tayang serentak)
+            </div>
+            {draft.broadcasters.map((b, idx) => (
+              <div key={idx} style={styles.matchEditRow}>
+                <input
+                  style={styles.teamInput}
+                  placeholder={idx === 0 ? "Live on (mis. RCTI, Vidio, ESPN)" : "Channel tambahan"}
+                  value={b}
+                  onChange={(e) => {
+                    const next = [...draft.broadcasters];
+                    next[idx] = e.target.value;
+                    setDraft({ ...draft, broadcasters: next });
+                  }}
+                />
+                {draft.broadcasters.length > 1 && (
+                  <button
+                    type="button"
+                    style={styles.rowRemoveBtn}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        broadcasters: draft.broadcasters.filter((_, i) => i !== idx),
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              style={styles.addMatchBtn}
+              onClick={() => setDraft({ ...draft, broadcasters: [...draft.broadcasters, ""] })}
+            >
+              + Tambah channel
+            </button>
 
             <div style={styles.matchEditorLabel}>Format Pertandingan</div>
             <div style={styles.formatToggleRow}>
@@ -619,12 +848,43 @@ export default function JadwalOlahraga() {
                   />
                   {" "}FB (mengikuti pertandingan sebelumnya, tanpa jam pasti)
                 </label>
-                <input
-                  style={styles.liveOnInput}
-                  placeholder="Live on buat pertandingan ini (mis. Vidio)"
-                  value={m.liveOn}
-                  onChange={(e) => updateDraftMatch(m.id, "liveOn", e.target.value)}
-                />
+                <div style={styles.matchEditorLabel}>Live On pertandingan ini</div>
+                {m.liveOns.map((lv, lvIdx) => (
+                  <div key={lvIdx} style={styles.matchEditRow}>
+                    <input
+                      style={styles.liveOnInput}
+                      placeholder={lvIdx === 0 ? "mis. Vidio" : "Channel tambahan"}
+                      value={lv}
+                      onChange={(e) => {
+                        const next = [...m.liveOns];
+                        next[lvIdx] = e.target.value;
+                        updateDraftMatch(m.id, "liveOns", next);
+                      }}
+                    />
+                    {m.liveOns.length > 1 && (
+                      <button
+                        type="button"
+                        style={styles.rowRemoveBtn}
+                        onClick={() =>
+                          updateDraftMatch(
+                            m.id,
+                            "liveOns",
+                            m.liveOns.filter((_, i) => i !== lvIdx)
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  style={styles.addMatchBtn}
+                  onClick={() => updateDraftMatch(m.id, "liveOns", [...m.liveOns, ""])}
+                >
+                  + Tambah channel
+                </button>
               </div>
             ))}
             <button style={styles.addMatchBtn} onClick={addDraftMatch}>
@@ -771,6 +1031,166 @@ export default function JadwalOlahraga() {
         </div>
       )}
 
+      {eventLogoModalOpen && (
+        <div style={styles.overlay} onClick={() => setEventLogoModalOpen(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalTitle}>Logo Event</div>
+            <p style={styles.mutedSmall}>
+              Simpen logo buat nama event tertentu (mis. "Wimbledon", "FIFA World Cup"). Lain kali
+              bikin event baru dengan nama yang sama persis, logonya otomatis kepasang — nggak
+              perlu upload ulang.
+            </p>
+            <input
+              style={styles.input}
+              placeholder="Nama event (mis. Wimbledon)"
+              value={eventLogoNameInput}
+              onChange={(e) => setEventLogoNameInput(e.target.value)}
+            />
+            <label style={styles.uploadBtn}>
+              Upload Gambar Logo
+              <input
+                type="file"
+                accept="image/*"
+                style={styles.hiddenFileInput}
+                onChange={(e) => readImageFile(e.target.files[0], setEventLogoUrlInput)}
+              />
+            </label>
+            <input
+              style={styles.input}
+              placeholder="atau tempel URL logo"
+              value={eventLogoUrlInput.startsWith("data:") ? "" : eventLogoUrlInput}
+              onChange={(e) => setEventLogoUrlInput(e.target.value)}
+            />
+            {eventLogoUrlInput && (
+              <div style={styles.logoPreviewRow}>
+                <img
+                  src={eventLogoUrlInput}
+                  alt=""
+                  style={styles.logoPreviewImg}
+                  onError={(e) => (e.target.style.display = "none")}
+                />
+                <span style={styles.mutedSmall}>Pratinjau</span>
+                <button
+                  type="button"
+                  style={styles.rowRemoveBtn}
+                  onClick={() => setEventLogoUrlInput("")}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <button
+              style={styles.primaryBtn}
+              onClick={() => {
+                if (!eventLogoNameInput.trim() || !eventLogoUrlInput.trim()) return;
+                saveEventLogo(eventLogoNameInput, eventLogoUrlInput);
+                setEventLogoNameInput("");
+                setEventLogoUrlInput("");
+                setToast("Logo event disimpan");
+                setTimeout(() => setToast(""), 2000);
+              }}
+            >
+              Simpan Logo
+            </button>
+
+            <div style={styles.matchEditorLabel}>Logo Tersimpan</div>
+            {Object.keys(eventLogos).length === 0 && (
+              <div style={styles.mutedSmall}>Belum ada logo event tersimpan.</div>
+            )}
+            {Object.entries(eventLogos).map(([name, url]) => (
+              <div key={name} style={styles.logoListRow}>
+                <img
+                  src={url}
+                  alt=""
+                  style={styles.logoPreviewImg}
+                  onError={(e) => (e.target.style.display = "none")}
+                />
+                <span style={styles.logoListName}>{name}</span>
+                <button style={styles.rowRemoveBtn} onClick={() => removeEventLogo(name)}>
+                  ×
+                </button>
+              </div>
+            ))}
+
+            <div style={styles.modalActions}>
+              <button style={styles.secondaryBtn} onClick={() => setEventLogoModalOpen(false)}>
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {suggestModalOpen && (
+        <div style={styles.overlay} onClick={() => setSuggestModalOpen(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalTitle}>Kasih Saran</div>
+            <p style={styles.mutedSmall}>
+              Ada jadwal yang salah, event yang mau ditambahin, atau ide lain? Kasih tau di sini.
+            </p>
+            <textarea
+              style={{ ...styles.input, height: 100, resize: "none" }}
+              placeholder="Tulis saran kamu..."
+              value={suggestMessage}
+              onChange={(e) => setSuggestMessage(e.target.value)}
+            />
+            <input
+              style={styles.input}
+              placeholder="Kontak kamu (opsional, mis. IG/email, buat dibales)"
+              value={suggestContact}
+              onChange={(e) => setSuggestContact(e.target.value)}
+            />
+            <div style={styles.modalActions}>
+              <button
+                style={styles.secondaryBtn}
+                onClick={() => {
+                  setSuggestModalOpen(false);
+                  setSuggestMessage("");
+                  setSuggestContact("");
+                }}
+              >
+                Batal
+              </button>
+              <button
+                style={styles.primaryBtn}
+                onClick={handleSubmitSuggestion}
+                disabled={suggestSending || !suggestMessage.trim()}
+              >
+                {suggestSending ? "Mengirim..." : "Kirim"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inboxModalOpen && (
+        <div style={styles.overlay} onClick={() => setInboxModalOpen(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalTitle}>Saran Masuk</div>
+            {suggestions.length === 0 && (
+              <div style={styles.mutedSmall}>Belum ada saran yang masuk.</div>
+            )}
+            {suggestions.map((s) => (
+              <div key={s.id} style={styles.suggestionRow}>
+                <div style={styles.suggestionMeta}>
+                  {new Date(s.created_at).toLocaleString("id-ID")}
+                  {s.contact ? ` · ${s.contact}` : ""}
+                </div>
+                <div style={styles.suggestionMessage}>{s.message}</div>
+                <button style={styles.rowRemoveBtnText} onClick={() => handleDeleteSuggestion(s.id)}>
+                  Hapus
+                </button>
+              </div>
+            ))}
+            <div style={styles.modalActions}>
+              <button style={styles.secondaryBtn} onClick={() => setInboxModalOpen(false)}>
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && <div style={styles.toast}>{toast}</div>}
     </div>
   );
@@ -869,6 +1289,16 @@ const styles = {
     letterSpacing: "0.08em",
     marginBottom: 8,
     textTransform: "uppercase",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  dateLabelRange: {
+    color: "#767C89",
+    fontWeight: 400,
+    fontSize: 10,
+    letterSpacing: "0.04em",
   },
   eventCard: {
     background: "#1D2027",
@@ -935,8 +1365,30 @@ const styles = {
     borderBottom: "1px solid #2C303A",
   },
   logoListName: { fontSize: 13, flex: 1, textTransform: "capitalize" },
+  suggestionRow: {
+    padding: "10px 0",
+    borderBottom: "1px solid #2C303A",
+  },
+  suggestionMeta: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 10,
+    color: "#767C89",
+    marginBottom: 4,
+  },
+  suggestionMessage: { fontSize: 14, marginBottom: 6, whiteSpace: "pre-wrap" },
+  rowRemoveBtnText: {
+    background: "none",
+    border: "1px solid #2C303A",
+    color: "#767C89",
+    borderRadius: 3,
+    padding: "4px 10px",
+    fontSize: 11,
+    cursor: "pointer",
+    fontFamily: "'Inter', sans-serif",
+  },
   eventTitleCol: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 },
-  liveOnRow: { display: "flex", alignItems: "center", gap: 6 },
+  liveOnRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  liveOnChannelChip: { display: "flex", alignItems: "center", gap: 4 },
   liveOnLogo: {
     height: 18,
     width: 18,
@@ -1018,8 +1470,13 @@ const styles = {
     fontSize: 11,
     color: "#F2C14E",
     flexShrink: 0,
-    whiteSpace: "nowrap",
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+    maxWidth: 140,
   },
+  matchLiveOnChannelChip: { display: "inline-flex", alignItems: "center", gap: 2 },
   matchLiveOnLabel: {
     color: "#767C89",
     letterSpacing: "0.08em",
