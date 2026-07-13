@@ -39,3 +39,44 @@ export function subscribeKV(key, onChange) {
 
   return () => supabase.removeChannel(channel);
 }
+
+// ---- Fitur Saran/Suggestions ----
+// Beda tabel dari kv_store: tiap saran baris sendiri (bukan blob JSON
+// yang ditimpa ulang), jadi aman kalau banyak orang submit bersamaan.
+
+// Siapa aja boleh kirim saran, termasuk yang belum login.
+export async function submitSuggestion(message, contact) {
+  const { error } = await supabase.from("suggestions").insert({
+    message,
+    contact: contact || null,
+  });
+  if (error) throw error;
+}
+
+// Cuma jalan kalau yang manggil ini akun admin (RLS di database yang
+// nentuin, bukan kode ini) — pengunjung publik biasa bakal dapet array
+// kosong, bukan error, kalau nyoba manggil ini.
+export async function fetchSuggestions() {
+  const { data, error } = await supabase
+    .from("suggestions")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function deleteSuggestion(id) {
+  const { error } = await supabase.from("suggestions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// realtime buat daftar saran, biar admin nggak perlu refresh manual
+export function subscribeSuggestions(onChange) {
+  const channel = supabase
+    .channel("suggestions-changes")
+    .on("postgres_changes", { event: "*", schema: "public", table: "suggestions" }, () => {
+      onChange();
+    })
+    .subscribe();
+  return () => supabase.removeChannel(channel);
+}
