@@ -28,6 +28,31 @@ function getBroadcastDate(dateStr, timeStr) {
   return `${yy}-${mm}-${dd}`;
 }
 
+// Posisi jam dalam satu "hari siaran": 06:00 dianggap paling awal (0),
+// lewat tengah malam sampai 05:59 dianggap paling akhir. Dipakai buat
+// ngurutin tampilan jadwal ke publik, terlepas dari urutan pas diinput.
+function broadcastSortKey(timeStr) {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  const totalMin = h * 60 + m;
+  return h < 6 ? totalMin + 24 * 60 : totalMin;
+}
+
+// Urutin array matches berdasarkan jam siaran. Match FB (tanpa jam) tetap
+// nempel di posisi setelah match berjam yang paling deket sebelumnya,
+// nggak ikut lompat urutan sendiri.
+function sortMatchesForDisplay(matches) {
+  let lastKey = -1;
+  const withKeys = matches.map((m) => {
+    const key = broadcastSortKey(m.time);
+    if (key !== null) lastKey = key;
+    return { m, key: key !== null ? key : lastKey + 0.5 };
+  });
+  return withKeys.sort((a, b) => a.key - b.key).map((x) => x.m);
+}
+
+
 // "Hari ini" versi tanggal lokal (bukan UTC) — penting krusial di sini,
 // soalnya kalau dipake tengah malam/dini hari, toISOString() bisa salah
 // mundur satu hari karena dia convert ke UTC dulu.
@@ -335,35 +360,10 @@ export default function JadwalOlahraga() {
       let loaded = [];
       try {
         const r = await getKV("events");
-        loaded = r || seedData();
+        loaded = r || [];
         if (!r) await setKV("events", loaded);
       } catch (e) {
-        loaded = seedData();
-      }
-
-      // simulation: make sure today's Wimbledon schedule is present
-      const hasWimbledon = loaded.some((ev) => ev.name.toLowerCase().includes("wimbledon"));
-      if (!hasWimbledon) {
-        loaded = [...loaded, wimbledonDemoEvent()];
-      }
-
-      // repair: replace old unreliable wikimedia logo links with favicon-service links
-      let repaired = false;
-      loaded = loaded.map((ev) => {
-        if (ev.logo && ev.logo.includes("upload.wikimedia.org")) {
-          repaired = true;
-          const guess = ev.name.toLowerCase().includes("world cup") ? "fifa.com" : "wimbledon.com";
-          return { ...ev, logo: `https://www.google.com/s2/favicons?sz=128&domain=${guess}` };
-        }
-        return ev;
-      });
-
-      if (!hasWimbledon || repaired) {
-        try {
-          await setKV("events", loaded);
-        } catch (e) {
-          /* ignore, still show in-memory */
-        }
+        loaded = [];
       }
 
       // migrasi data lama (LIVE ON single string) ke format array baru
@@ -373,43 +373,6 @@ export default function JadwalOlahraga() {
       setLoading(false);
     })();
   }, []);
-
-  function wimbledonDemoEvent() {
-    return {
-      id: crypto.randomUUID(),
-      name: "WIMBLEDON",
-      logo: "data:image/png;base64,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",
-      broadcaster: "SPOTV NOW",
-      date: todayLocalDate(),
-      matches: [
-        // Centre Court (start 13:30 BST -> 19:30 WIB, next two are estimates)
-        { id: crypto.randomUUID(), time: "19:30", teamA: "Novak Djokovic", teamB: "Arthur Rinderknech", liveOn: "SPOTV" },
-        { id: crypto.randomUUID(), time: "21:30", teamA: "Aryna Sabalenka", teamB: "Jelena Ostapenko", liveOn: "SPOTV" },
-        { id: crypto.randomUUID(), time: "23:30", teamA: "Felix Auger-Aliassime", teamB: "Michael Zheng", liveOn: "SPOTV" },
-        // No.1 Court (start 13:00 BST -> 19:00 WIB, next two are estimates)
-        { id: crypto.randomUUID(), time: "19:00", teamA: "Daria Kasatkina", teamB: "Naomi Osaka", liveOn: "SPOTV 2" },
-        { id: crypto.randomUUID(), time: "21:00", teamA: "Jannik Sinner", teamB: "Jenson Brooksby", liveOn: "SPOTV 2" },
-        { id: crypto.randomUUID(), time: "23:00", teamA: "Claire Liu", teamB: "Coco Gauff", liveOn: "SPOTV 2" },
-      ],
-    };
-  }
-
-  function seedData() {
-    return [
-      {
-        id: crypto.randomUUID(),
-        name: "FIFA WORLD CUP 26",
-        logo: "https://www.google.com/s2/favicons?sz=128&domain=fifa.com",
-        broadcaster: "",
-        date: todayLocalDate(),
-        matches: [
-          { id: crypto.randomUUID(), time: "01:00", teamA: "Australia", teamB: "Egypt", liveOn: "" },
-          { id: crypto.randomUUID(), time: "05:00", teamA: "Argentina", teamB: "Cabo Verde", liveOn: "" },
-          { id: crypto.randomUUID(), time: "08:30", teamA: "Colombia", teamB: "Ghana", liveOn: "" },
-        ],
-      },
-    ];
-  }
 
   const persist = async (next) => {
     setEvents(next);
@@ -482,19 +445,40 @@ export default function JadwalOlahraga() {
 
   // group by "hari siaran" (06:00-05:59), bukan per event secara utuh —
   // matches dalam satu event bisa kepisah ke 2 hari siaran kalau ada yang
-  // sebelum & sesudah jam 6 pagi
+  // sebelum & sesudah jam 6 pagi. Di-key pakai NAMA event (bukan id),
+  // biar event yang kepaksa dipecah jadi 2 entry gara-gara beda tanggal
+  // (mis. pertandingan lewat tengah malam) otomatis gabung lagi jadi satu
+  // kartu kalau nama-nya sama dan jatuh di bucket hari yang sama.
   const byDate = {};
   events.forEach((ev) => {
+    const nameKey = ev.name.trim().toLowerCase();
+    const addToBucket = (bd, m) => {
+      if (!byDate[bd]) byDate[bd] = {};
+      if (!byDate[bd][nameKey]) {
+        byDate[bd][nameKey] = { event: ev, matches: [], sourceEvents: [ev] };
+      } else {
+        const g = byDate[bd][nameKey];
+        // lengkapin metadata yang kosong dari entry sebelumnya (logo/round/broadcasters)
+        g.event = {
+          ...g.event,
+          logo: g.event.logo || ev.logo,
+          round: g.event.round || ev.round,
+          broadcasters:
+            g.event.broadcasters && g.event.broadcasters.filter(Boolean).length
+              ? g.event.broadcasters
+              : ev.broadcasters,
+        };
+        if (!g.sourceEvents.some((s) => s.id === ev.id)) g.sourceEvents.push(ev);
+      }
+      if (m) byDate[bd][nameKey].matches.push(m);
+    };
+
     if (ev.matches.length === 0) {
-      if (!byDate[ev.date]) byDate[ev.date] = {};
-      if (!byDate[ev.date][ev.id]) byDate[ev.date][ev.id] = { event: ev, matches: [] };
+      addToBucket(ev.date, null);
       return;
     }
     ev.matches.forEach((m) => {
-      const bd = getBroadcastDate(ev.date, m.time);
-      if (!byDate[bd]) byDate[bd] = {};
-      if (!byDate[bd][ev.id]) byDate[bd][ev.id] = { event: ev, matches: [] };
-      byDate[bd][ev.id].matches.push(m);
+      addToBucket(getBroadcastDate(ev.date, m.time), m);
     });
   });
   const sortedDates = Object.keys(byDate).sort();
@@ -563,8 +547,8 @@ export default function JadwalOlahraga() {
           <div style={styles.dateLabel}>
             {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 WIB</span>
           </div>
-          {Object.values(byDate[date]).map(({ event: ev, matches }) => (
-            <div key={ev.id} style={styles.eventCard}>
+          {Object.values(byDate[date]).map(({ event: ev, matches, sourceEvents }) => (
+            <div key={sourceEvents[0].id} style={styles.eventCard}>
               <div style={styles.eventHeaderRow}>
                 <div style={styles.eventHeaderLeft}>
                   {ev.logo ? (
@@ -616,17 +600,24 @@ export default function JadwalOlahraga() {
                 </div>
                 {isAdmin && (
                   <div style={styles.eventHeaderActions}>
-                    <button style={styles.editBtn} onClick={() => openEditEvent(ev)}>
+                    <button style={styles.editBtn} onClick={() => openEditEvent(sourceEvents[0])}>
                       Edit
                     </button>
-                    <button style={styles.deleteBtn} onClick={() => deleteEvent(ev.id)}>
+                    <button style={styles.deleteBtn} onClick={() => deleteEvent(sourceEvents[0].id)}>
                       Hapus
                     </button>
                   </div>
                 )}
               </div>
+              {isAdmin && sourceEvents.length > 1 && (
+                <div style={styles.mergedNote}>
+                  Kartu ini gabungan {sourceEvents.length} entry (beda tanggal, lewat tengah malam).
+                  Edit/Hapus di atas cuma ngefek ke entry pertama — kalau mau ubah bagian lain,
+                  cari entry-nya lewat tanggal aslinya.
+                </div>
+              )}
               <div style={styles.matchList}>
-                {matches.map((m) => (
+                {sortMatchesForDisplay(matches).map((m) => (
                     <div key={m.id} style={styles.matchRow}>
                       <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
                         {m.followedBy ? "FB" : m.time}
@@ -1425,6 +1416,13 @@ const styles = {
     marginTop: -2,
   },
   eventHeaderActions: { display: "flex", gap: 12, flexShrink: 0 },
+  mergedNote: {
+    fontSize: 10,
+    color: "#767C89",
+    fontStyle: "italic",
+    marginBottom: 8,
+    lineHeight: 1.4,
+  },
   editBtn: {
     background: "none",
     border: "none",
