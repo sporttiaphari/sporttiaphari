@@ -576,24 +576,35 @@ export default function JadwalOlahraga() {
                     {ev.broadcasters && ev.broadcasters.filter(Boolean).length > 0 && (
                       <div style={styles.liveOnRow}>
                         <span style={styles.liveOnLabel}>LIVE ON</span>
-                        {ev.broadcasters
-                          .filter(Boolean)
-                          .map((b, i, arr) => (
-                            <span key={i} style={styles.liveOnChannelChip}>
-                              {lookupBroadcasterLogo(b) ? (
-                                <img
-                                  src={lookupBroadcasterLogo(b)}
-                                  alt=""
-                                  style={styles.liveOnLogo}
-                                  onError={(e) => (e.target.style.display = "none")}
-                                />
-                              ) : null}
-                              <span style={styles.liveOnValue}>
-                                {b}
-                                {i < arr.length - 1 ? "," : ""}
-                              </span>
+                        {ev.broadcasters.filter(Boolean).map((b, i) => {
+                          const logo = lookupBroadcasterLogo(b);
+                          return (
+                            <span
+                              key={i}
+                              style={logo ? styles.liveOnChannelChip : styles.liveOnChannelChipText}
+                            >
+                              {logo ? (
+                                <>
+                                  <img
+                                    src={logo}
+                                    alt={b}
+                                    title={b}
+                                    style={styles.liveOnLogo}
+                                    onError={(e) => {
+                                      e.target.style.display = "none";
+                                      e.target.nextSibling.style.display = "inline";
+                                      e.target.parentElement.style.background = "transparent";
+                                      e.target.parentElement.style.padding = "0";
+                                    }}
+                                  />
+                                  <span style={{ ...styles.liveOnValue, display: "none" }}>{b}</span>
+                                </>
+                              ) : (
+                                <span style={styles.liveOnValue}>{b}</span>
+                              )}
                             </span>
-                          ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -634,22 +645,35 @@ export default function JadwalOlahraga() {
                       {m.liveOns && m.liveOns.filter(Boolean).length > 0 && (
                         <span style={styles.matchLiveOn}>
                           <span style={styles.matchLiveOnLabel}>LIVE ON</span>{" "}
-                          {m.liveOns
-                            .filter(Boolean)
-                            .map((lv, i, arr) => (
-                              <span key={i} style={styles.matchLiveOnChannelChip}>
-                                {lookupBroadcasterLogo(lv) ? (
-                                  <img
-                                    src={lookupBroadcasterLogo(lv)}
-                                    alt=""
-                                    style={styles.matchLiveOnLogo}
-                                    onError={(e) => (e.target.style.display = "none")}
-                                  />
-                                ) : null}
-                                {lv}
-                                {i < arr.length - 1 ? "," : ""}
+                          {m.liveOns.filter(Boolean).map((lv, i) => {
+                            const logo = lookupBroadcasterLogo(lv);
+                            return (
+                              <span
+                                key={i}
+                                style={logo ? styles.matchLiveOnChannelChip : styles.matchLiveOnChannelChipText}
+                              >
+                                {logo ? (
+                                  <>
+                                    <img
+                                      src={logo}
+                                      alt={lv}
+                                      title={lv}
+                                      style={styles.matchLiveOnLogo}
+                                      onError={(e) => {
+                                        e.target.style.display = "none";
+                                        e.target.nextSibling.style.display = "inline";
+                                        e.target.parentElement.style.background = "transparent";
+                                        e.target.parentElement.style.padding = "0";
+                                      }}
+                                    />
+                                    <span style={{ display: "none" }}>{lv}</span>
+                                  </>
+                                ) : (
+                                  lv
+                                )}
                               </span>
-                            ))}
+                            );
+                          })}
                         </span>
                       )}
                     </div>
@@ -1379,15 +1403,20 @@ const styles = {
   },
   eventTitleCol: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 },
   liveOnRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  liveOnChannelChip: { display: "flex", alignItems: "center", gap: 4 },
-  liveOnLogo: {
-    height: 18,
-    width: 18,
-    objectFit: "contain",
-    borderRadius: 4,
+  liveOnChannelChip: {
+    display: "inline-flex",
+    alignItems: "center",
     background: "#F2EFE9",
-    padding: 2,
-    boxSizing: "border-box",
+    borderRadius: 4,
+    padding: "2px 5px",
+  },
+  liveOnChannelChipText: { display: "inline-flex", alignItems: "center" },
+  liveOnLogo: {
+    height: 20,
+    width: "auto",
+    maxWidth: 100,
+    objectFit: "contain",
+    display: "block",
   },
   liveOnLabel: {
     fontFamily: "'IBM Plex Mono', monospace",
@@ -1472,9 +1501,20 @@ const styles = {
     alignItems: "center",
     flexWrap: "wrap",
     gap: 4,
-    maxWidth: 140,
+    maxWidth: 180,
   },
-  matchLiveOnChannelChip: { display: "inline-flex", alignItems: "center", gap: 2 },
+  matchLiveOnChannelChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    background: "#F2EFE9",
+    borderRadius: 3,
+    padding: "1px 4px",
+  },
+  matchLiveOnChannelChipText: {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#F2C14E",
+  },
   matchLiveOnLabel: {
     color: "#767C89",
     letterSpacing: "0.08em",
@@ -1482,14 +1522,10 @@ const styles = {
   },
   matchLiveOnLogo: {
     height: 16,
-    width: 16,
+    width: "auto",
+    maxWidth: 70,
     objectFit: "contain",
-    borderRadius: 3,
-    background: "#F2EFE9",
-    padding: 1,
-    margin: "0 3px",
-    verticalAlign: "middle",
-    boxSizing: "border-box",
+    display: "block",
   },
   vs: { color: "#767C89", fontSize: 12, margin: "0 4px" },
   mutedSmall: { fontSize: 12, color: "#767C89" },
