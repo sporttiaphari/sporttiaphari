@@ -81,13 +81,16 @@ const emptyEvent = () => ({
   broadcasters: [""],
   format: "versus", // "versus" (Tim A vs Tim B) or "single" (mis. balapan, satu sesi/entri)
   date: todayLocalDate(),
+  order: Date.now(), // urutan tampil, bisa digeser manual lewat tombol naik/turun
   matches: [emptyMatch()],
 });
 
 // Data lama nyimpen LIVE ON sebagai satu string (broadcaster/liveOn).
 // Fungsi ini migrasiin ke bentuk array baru, jadi event/jadwal lama tetap
 // kebaca normal walau formatnya sekarang mendukung banyak channel sekaligus.
-function normalizeEvent(ev) {
+// Event yang belum punya field `order` (dibikin sebelum fitur urutan manual
+// ada) dikasih fallback dari posisinya di array, biar tetap stabil.
+function normalizeEvent(ev, fallbackOrder) {
   const broadcasters =
     ev.broadcasters && ev.broadcasters.length
       ? ev.broadcasters
@@ -98,7 +101,8 @@ function normalizeEvent(ev) {
     ...m,
     liveOns: m.liveOns && m.liveOns.length ? m.liveOns : m.liveOn ? [m.liveOn] : [""],
   }));
-  return { ...ev, broadcasters, matches };
+  const order = typeof ev.order === "number" ? ev.order : fallbackOrder || 0;
+  return { ...ev, broadcasters, matches, order };
 }
 
 function readImageFile(file, onDone) {
@@ -367,7 +371,7 @@ export default function JadwalOlahraga() {
       }
 
       // migrasi data lama (LIVE ON single string) ke format array baru
-      loaded = loaded.map(normalizeEvent);
+      loaded = loaded.map((ev, idx) => normalizeEvent(ev, idx));
 
       setEvents(loaded);
       setLoading(false);
@@ -483,6 +487,42 @@ export default function JadwalOlahraga() {
   });
   const sortedDates = Object.keys(byDate).sort();
 
+  // urutin grup dalam satu hari siaran berdasarkan field `order` (nilai
+  // terkecil di antara sourceEvents-nya), bukan urutan insersi yang nggak
+  // bisa diatur manual
+  const getSortedGroupsForDate = (date) =>
+    Object.values(byDate[date]).sort((a, b) => {
+      const orderA = Math.min(...a.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
+      const orderB = Math.min(...b.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
+      return orderA - orderB;
+    });
+
+  // geser urutan tampil satu "kartu" (bisa gabungan beberapa sourceEvents)
+  // relatif ke tetangganya di hari siaran yang sama, dengan cara nukar
+  // nilai `order` di antara dua grup itu
+  const moveEventInDate = async (date, groupEventId, direction) => {
+    if (!isAdmin) return;
+    const groups = getSortedGroupsForDate(date);
+    const idx = groups.findIndex((g) => g.event.id === groupEventId);
+    if (idx === -1) return;
+    const neighborIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (neighborIdx < 0 || neighborIdx >= groups.length) return;
+    const currentGroup = groups[idx];
+    const neighborGroup = groups[neighborIdx];
+    const currentMin = Math.min(
+      ...currentGroup.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0))
+    );
+    const neighborMin = Math.min(
+      ...neighborGroup.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0))
+    );
+    const next = events.map((e) => {
+      if (currentGroup.sourceEvents.some((s) => s.id === e.id)) return { ...e, order: neighborMin };
+      if (neighborGroup.sourceEvents.some((s) => s.id === e.id)) return { ...e, order: currentMin };
+      return e;
+    });
+    await persist(next);
+  };
+
   if (loading) {
     return (
       <div style={styles.page}>
@@ -547,7 +587,7 @@ export default function JadwalOlahraga() {
           <div style={styles.dateLabel}>
             {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 WIB</span>
           </div>
-          {Object.values(byDate[date]).map(({ event: ev, matches, sourceEvents }) => (
+          {getSortedGroupsForDate(date).map(({ event: ev, matches, sourceEvents }, idx, arr) => (
             <div key={sourceEvents[0].id} style={styles.eventCard}>
               <div style={styles.eventHeaderRow}>
                 <div style={styles.eventHeaderLeft}>
@@ -611,6 +651,22 @@ export default function JadwalOlahraga() {
                 </div>
                 {isAdmin && (
                   <div style={styles.eventHeaderActions}>
+                    <button
+                      style={idx === 0 ? styles.reorderBtnDisabled : styles.reorderBtn}
+                      disabled={idx === 0}
+                      onClick={() => moveEventInDate(date, ev.id, "up")}
+                      title="Naikkan urutan"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      style={idx === arr.length - 1 ? styles.reorderBtnDisabled : styles.reorderBtn}
+                      disabled={idx === arr.length - 1}
+                      onClick={() => moveEventInDate(date, ev.id, "down")}
+                      title="Turunkan urutan"
+                    >
+                      ↓
+                    </button>
                     <button style={styles.editBtn} onClick={() => openEditEvent(sourceEvents[0])}>
                       Edit
                     </button>
@@ -1444,7 +1500,33 @@ const styles = {
     fontWeight: 500,
     marginTop: -2,
   },
-  eventHeaderActions: { display: "flex", gap: 12, flexShrink: 0 },
+  eventHeaderActions: { display: "flex", gap: 10, flexShrink: 0, alignItems: "center" },
+  reorderBtn: {
+    background: "none",
+    border: "1px solid #2C303A",
+    color: "#EDEFF3",
+    borderRadius: 3,
+    width: 22,
+    height: 22,
+    lineHeight: 1,
+    fontSize: 12,
+    cursor: "pointer",
+    fontFamily: "'Inter', sans-serif",
+    padding: 0,
+  },
+  reorderBtnDisabled: {
+    background: "none",
+    border: "1px solid #2C303A",
+    color: "#3A3F49",
+    borderRadius: 3,
+    width: 22,
+    height: 22,
+    lineHeight: 1,
+    fontSize: 12,
+    cursor: "not-allowed",
+    fontFamily: "'Inter', sans-serif",
+    padding: 0,
+  },
   mergedNote: {
     fontSize: 10,
     color: "#767C89",
