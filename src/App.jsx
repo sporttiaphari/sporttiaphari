@@ -12,6 +12,12 @@ function fmtDateLabel(dateStr) {
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+function fmtDateShort(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
 // Satu "hari siaran" dihitung dari jam 06:00 s.d. 05:59 keesokan harinya
 // (kayak jadwal TV), bukan per tanggal kalender biasa. Jadi pertandingan
 // jam 01:00 tanggal 13 sebenernya masih masuk hari siaran tanggal 12.
@@ -177,6 +183,7 @@ export default function JadwalOlahraga() {
   const [eventLogos, setEventLogos] = useState({});
   const [logoModalOpen, setLogoModalOpen] = useState(false);
   const [eventLogoModalOpen, setEventLogoModalOpen] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
   const [logoNameInput, setLogoNameInput] = useState("");
   const [logoUrlInput, setLogoUrlInput] = useState("");
   const [eventLogoNameInput, setEventLogoNameInput] = useState("");
@@ -546,21 +553,15 @@ export default function JadwalOlahraga() {
           <div>
             <div style={styles.eyebrow}>JADWAL OLAHRAGA</div>
             <div style={styles.headline}>@sporttiaphari</div>
+            <div style={styles.headerNote}>
+              Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan.
+            </div>
             {isAdmin && <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>}
           </div>
         </div>
         <div style={styles.headerActions}>
           {isAdmin ? (
             <>
-              <button style={styles.addBtn} onClick={openNewEvent}>
-                + Event
-              </button>
-              <button style={styles.lockBtn} onClick={() => setLogoModalOpen(true)}>
-                Logo Channel
-              </button>
-              <button style={styles.lockBtn} onClick={() => setEventLogoModalOpen(true)}>
-                Logo Event
-              </button>
               <button style={styles.lockBtn} onClick={() => setInboxModalOpen(true)}>
                 Saran Masuk{suggestions.length > 0 ? ` (${suggestions.length})` : ""}
               </button>
@@ -667,20 +668,39 @@ export default function JadwalOlahraga() {
                     >
                       ↓
                     </button>
-                    <button style={styles.editBtn} onClick={() => openEditEvent(sourceEvents[0])}>
-                      Edit
-                    </button>
-                    <button style={styles.deleteBtn} onClick={() => deleteEvent(sourceEvents[0].id)}>
-                      Hapus
-                    </button>
+                    {sourceEvents.length === 1 && (
+                      <>
+                        <button style={styles.editBtn} onClick={() => openEditEvent(sourceEvents[0])}>
+                          Edit
+                        </button>
+                        <button
+                          style={styles.deleteBtn}
+                          onClick={() => deleteEvent(sourceEvents[0].id)}
+                        >
+                          Hapus
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
               {isAdmin && sourceEvents.length > 1 && (
-                <div style={styles.mergedNote}>
-                  Kartu ini gabungan {sourceEvents.length} entry (beda tanggal, lewat tengah malam).
-                  Edit/Hapus di atas cuma ngefek ke entry pertama — kalau mau ubah bagian lain,
-                  cari entry-nya lewat tanggal aslinya.
+                <div style={styles.mergedActions}>
+                  <div style={styles.mergedNote}>
+                    Kartu ini gabungan {sourceEvents.length} entry (beda tanggal, lewat tengah
+                    malam). Pilih tanggal buat edit/hapus bagian itu:
+                  </div>
+                  {sourceEvents.map((se) => (
+                    <div key={se.id} style={styles.mergedActionRow}>
+                      <span style={styles.mergedActionDate}>{fmtDateShort(se.date)}</span>
+                      <button style={styles.editBtn} onClick={() => openEditEvent(se)}>
+                        Edit
+                      </button>
+                      <button style={styles.deleteBtn} onClick={() => deleteEvent(se.id)}>
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
               <div style={styles.matchList}>
@@ -1262,6 +1282,51 @@ export default function JadwalOlahraga() {
         </div>
       )}
 
+      {isAdmin && (
+        <div style={styles.fabWrap}>
+          {fabOpen && (
+            <>
+              <button
+                style={styles.fabOption}
+                onClick={() => {
+                  setEventLogoModalOpen(true);
+                  setFabOpen(false);
+                }}
+              >
+                <span style={styles.fabOptionLabel}>Logo Event</span>
+                <span style={styles.fabOptionCircle}>🖼️</span>
+              </button>
+              <button
+                style={styles.fabOption}
+                onClick={() => {
+                  setLogoModalOpen(true);
+                  setFabOpen(false);
+                }}
+              >
+                <span style={styles.fabOptionLabel}>Logo Channel</span>
+                <span style={styles.fabOptionCircle}>📺</span>
+              </button>
+              <button
+                style={styles.fabOption}
+                onClick={() => {
+                  openNewEvent();
+                  setFabOpen(false);
+                }}
+              >
+                <span style={styles.fabOptionLabel}>Event Baru</span>
+                <span style={styles.fabOptionCircle}>📅</span>
+              </button>
+            </>
+          )}
+          <button
+            style={fabOpen ? styles.fabMainOpen : styles.fabMain}
+            onClick={() => setFabOpen((v) => !v)}
+          >
+            +
+          </button>
+        </div>
+      )}
+
       {toast && <div style={styles.toast}>{toast}</div>}
     </div>
   );
@@ -1277,16 +1342,22 @@ const styles = {
     background: "#14161A",
     color: "#EDEFF3",
     fontFamily: "'Inter', sans-serif",
-    padding: "24px 16px 60px",
+    padding: "0 16px 60px",
     boxSizing: "border-box",
   },
   muted: { color: "#767C89", fontFamily: "'IBM Plex Mono', monospace" },
   header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    background: "#14161A",
     maxWidth: 640,
-    margin: "0 auto 22px",
+    margin: "0 auto",
+    padding: "24px 0 20px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-end",
+    borderBottom: "1px solid #2C303A",
   },
   brandRow: { display: "flex", alignItems: "center", gap: 12 },
   brandLogo: {
@@ -1311,6 +1382,13 @@ const styles = {
     color: "#F2C14E",
     letterSpacing: "0.04em",
     marginTop: 4,
+  },
+  headerNote: {
+    fontSize: 11,
+    color: "#767C89",
+    marginTop: 4,
+    maxWidth: 320,
+    lineHeight: 1.4,
   },
   addBtn: {
     background: "#3DDC97",
@@ -1354,16 +1432,20 @@ const styles = {
   },
   dateBlock: { maxWidth: 640, margin: "0 auto 22px" },
   dateLabel: {
+    position: "sticky",
+    top: 136,
+    zIndex: 10,
+    background: "#14161A",
     fontFamily: "'IBM Plex Mono', monospace",
     fontSize: 12,
     color: "#F2C14E",
     letterSpacing: "0.08em",
-    marginBottom: 8,
     textTransform: "uppercase",
     display: "flex",
     flexWrap: "wrap",
     alignItems: "baseline",
     gap: 6,
+    padding: "10px 0 8px",
   },
   dateLabelRange: {
     color: "#767C89",
@@ -1527,12 +1609,31 @@ const styles = {
     fontFamily: "'Inter', sans-serif",
     padding: 0,
   },
+  mergedActions: {
+    marginBottom: 10,
+    padding: "8px 10px",
+    background: "#14161A",
+    border: "1px solid #2C303A",
+    borderRadius: 3,
+  },
   mergedNote: {
     fontSize: 10,
     color: "#767C89",
     fontStyle: "italic",
     marginBottom: 8,
     lineHeight: 1.4,
+  },
+  mergedActionRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "4px 0",
+  },
+  mergedActionDate: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 11,
+    color: "#F2C14E",
+    minWidth: 44,
   },
   editBtn: {
     background: "none",
@@ -1778,6 +1879,77 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     fontFamily: "'Inter', sans-serif",
+  },
+  fabWrap: {
+    position: "fixed",
+    bottom: 24,
+    right: 20,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 12,
+    zIndex: 30,
+  },
+  fabMain: {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    background: "#3DDC97",
+    color: "#14161A",
+    border: "none",
+    fontSize: 28,
+    fontWeight: 400,
+    lineHeight: 1,
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+    transition: "transform 0.15s ease",
+  },
+  fabMainOpen: {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    background: "#3DDC97",
+    color: "#14161A",
+    border: "none",
+    fontSize: 28,
+    fontWeight: 400,
+    lineHeight: 1,
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+    transform: "rotate(45deg)",
+  },
+  fabOption: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: 0,
+  },
+  fabOptionLabel: {
+    background: "#1D2027",
+    border: "1px solid #2C303A",
+    color: "#EDEFF3",
+    borderRadius: 4,
+    padding: "6px 10px",
+    fontSize: 12,
+    fontFamily: "'Inter', sans-serif",
+    whiteSpace: "nowrap",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+  },
+  fabOptionCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: "50%",
+    background: "#1D2027",
+    border: "1px solid #2C303A",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 18,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+    flexShrink: 0,
   },
   toast: {
     position: "fixed",
