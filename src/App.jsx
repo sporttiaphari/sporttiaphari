@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { getKV, setKV, subscribeKV, submitSuggestion, fetchSuggestions, deleteSuggestion, subscribeSuggestions } from "./db";
 import { supabase } from "./supabaseClient";
 
@@ -184,6 +184,22 @@ export default function JadwalOlahraga() {
   const [logoModalOpen, setLogoModalOpen] = useState(false);
   const [eventLogoModalOpen, setEventLogoModalOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+  const headerRef = useRef(null);
+  const [headerHeight, setHeaderHeight] = useState(136);
+
+  // ukur tinggi header beneran (bukan angka tebakan), biar label tanggal
+  // nempel pas di bawahnya — baik di mode publik maupun Developer Mode,
+  // yang tinggi headernya beda-beda (ada badge/tombol tambahan)
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    const update = () => setHeaderHeight(el.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isAdmin]);
+
   const [logoNameInput, setLogoNameInput] = useState("");
   const [logoUrlInput, setLogoUrlInput] = useState("");
   const [eventLogoNameInput, setEventLogoNameInput] = useState("");
@@ -542,7 +558,7 @@ export default function JadwalOlahraga() {
     <div style={styles.page}>
       <style>{fontImports}</style>
 
-      <header style={styles.header}>
+      <header ref={headerRef} style={styles.header}>
         <div style={styles.brandRow}>
           <img
             src={BRAND_LOGO}
@@ -585,7 +601,7 @@ export default function JadwalOlahraga() {
 
       {sortedDates.map((date) => (
         <section key={date} style={styles.dateBlock}>
-          <div style={styles.dateLabel}>
+          <div style={{ ...styles.dateLabel, top: headerHeight }}>
             {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 WIB</span>
           </div>
           {getSortedGroupsForDate(date).map(({ event: ev, matches, sourceEvents }, idx, arr) => (
@@ -1720,7 +1736,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     padding: 16,
-    zIndex: 10,
+    zIndex: 50,
   },
   modal: {
     background: "#1D2027",
