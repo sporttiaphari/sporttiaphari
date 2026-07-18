@@ -200,6 +200,15 @@ export default function JadwalOlahraga() {
     return () => observer.disconnect();
   }, [isAdmin]);
 
+  // header "collapse" jadi ringkas pas discroll, biar nggak makan tempat
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const [logoNameInput, setLogoNameInput] = useState("");
   const [logoUrlInput, setLogoUrlInput] = useState("");
   const [eventLogoNameInput, setEventLogoNameInput] = useState("");
@@ -558,22 +567,31 @@ export default function JadwalOlahraga() {
     <div style={styles.page}>
       <style>{fontImports}</style>
 
-      <header ref={headerRef} style={styles.header}>
+      <header ref={headerRef} style={scrolled ? styles.headerCollapsed : styles.header}>
         <div style={styles.brandRow}>
           <img
             src={BRAND_LOGO}
             alt="@sporttiaphari"
-            style={styles.brandLogo}
+            style={scrolled ? styles.brandLogoSmall : styles.brandLogo}
             onClick={handleLogoClick}
           />
-          <div>
-            <div style={styles.eyebrow}>JADWAL OLAHRAGA</div>
-            <div style={styles.headline}>@sporttiaphari</div>
-            <div style={styles.headerNote}>
-              Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan.
+          {scrolled ? (
+            <div style={styles.headlineCompactRow}>
+              <div style={styles.headlineCompact}>JADWAL OLAHRAGA @sporttiaphari</div>
+              {isAdmin && <span style={styles.devDot} title="Developer Mode aktif" />}
             </div>
-            {isAdmin && <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>}
-          </div>
+          ) : (
+            <div>
+              <div style={styles.eyebrow}>JADWAL OLAHRAGA</div>
+              <div style={styles.headline}>@sporttiaphari</div>
+              <div style={styles.headerNote}>
+                Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan.
+              </div>
+              {isAdmin && (
+                <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>
+              )}
+            </div>
+          )}
         </div>
         <div style={styles.headerActions}>
           {isAdmin ? (
@@ -1374,6 +1392,21 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-end",
     borderBottom: "1px solid #2C303A",
+    transition: "padding 0.2s ease",
+  },
+  headerCollapsed: {
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    background: "#14161A",
+    maxWidth: 640,
+    margin: "0 auto",
+    padding: "10px 0",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid #2C303A",
+    transition: "padding 0.2s ease",
   },
   brandRow: { display: "flex", alignItems: "center", gap: 12 },
   brandLogo: {
@@ -1382,6 +1415,36 @@ const styles = {
     objectFit: "cover",
     borderRadius: 6,
     border: "1px solid #2C303A",
+    flexShrink: 0,
+    transition: "width 0.2s ease, height 0.2s ease",
+    cursor: "pointer",
+  },
+  brandLogoSmall: {
+    width: 26,
+    height: 26,
+    objectFit: "cover",
+    borderRadius: 5,
+    border: "1px solid #2C303A",
+    flexShrink: 0,
+    transition: "width 0.2s ease, height 0.2s ease",
+    cursor: "pointer",
+  },
+  headlineCompactRow: { display: "flex", alignItems: "center", gap: 6, minWidth: 0 },
+  headlineCompact: {
+    fontFamily: "'Teko', sans-serif",
+    fontSize: 19,
+    fontWeight: 600,
+    letterSpacing: "0.01em",
+    color: "#EDEFF3",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  devDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "#F2C14E",
     flexShrink: 0,
   },
   eyebrow: {
