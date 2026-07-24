@@ -452,6 +452,38 @@ export default function JadwalOlahraga() {
     setModalOpen(true);
   };
 
+  // duplikat event yang udah ada, tanggalnya otomatis digeser ke besok
+  // (cocok buat event harian) — dibuka langsung di form edit biar bisa
+  // disesuaikan dulu sebelum disimpan, bukan langsung nempel ke jadwal
+  const duplicateEvent = (sourceEv) => {
+    if (!isAdmin) return;
+    const [y, m, d] = sourceEv.date.split("-").map(Number);
+    const nextDay = new Date(y, m - 1, d);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const tomorrow = `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(nextDay.getDate()).padStart(2, "0")}`;
+
+    const normalized = normalizeEvent(sourceEv);
+    setDraft({
+      ...normalized,
+      id: crypto.randomUUID(),
+      date: tomorrow,
+      order: Date.now(),
+      matches: normalized.matches.map((m) => ({
+        ...m,
+        id: crypto.randomUUID(),
+        liveOns: [...m.liveOns],
+      })),
+      broadcasters: [...normalized.broadcasters],
+    });
+    setEditingEventId(null); // dianggap event baru, bukan edit yang lama
+    setModalOpen(true);
+    setToast("Disalin — cek & sesuaikan sebelum simpan");
+    setTimeout(() => setToast(""), 2500);
+  };
+
   const updateDraftMatch = (id, field, value) => {
     setDraft((d) => ({
       ...d,
@@ -582,7 +614,7 @@ export default function JadwalOlahraga() {
     <div style={styles.page}>
       <style>{fontImports}</style>
 
-      <header ref={headerRef} style={scrolled ? styles.headerCollapsed : styles.header}>
+      <header ref={headerRef} className="jo-content" style={scrolled ? styles.headerCollapsed : styles.header}>
         <div style={styles.brandRow}>
           <img
             src={BRAND_LOGO}
@@ -627,13 +659,13 @@ export default function JadwalOlahraga() {
       </header>
 
       {sortedDates.length === 0 && (
-        <div style={styles.emptyState}>
+        <div className="jo-content" style={styles.emptyState}>
           Belum ada jadwal. Tambah event buat mulai isi agenda.
         </div>
       )}
 
       {sortedDates.map((date) => (
-        <section key={date} style={styles.dateBlock}>
+        <section key={date} className="jo-content" style={styles.dateBlock}>
           <div style={{ ...styles.dateLabel, top: headerHeight }}>
             {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 WIB</span>
           </div>
@@ -723,6 +755,12 @@ export default function JadwalOlahraga() {
                           Edit
                         </button>
                         <button
+                          style={styles.duplicateBtn}
+                          onClick={() => duplicateEvent(sourceEvents[0])}
+                        >
+                          Duplikat
+                        </button>
+                        <button
                           style={styles.deleteBtn}
                           onClick={() => deleteEvent(sourceEvents[0].id)}
                         >
@@ -737,13 +775,16 @@ export default function JadwalOlahraga() {
                 <div style={styles.mergedActions}>
                   <div style={styles.mergedNote}>
                     Kartu ini gabungan {sourceEvents.length} entry (beda tanggal, lewat tengah
-                    malam). Pilih tanggal buat edit/hapus bagian itu:
+                    malam). Pilih tanggal buat edit/hapus/duplikat bagian itu:
                   </div>
                   {sourceEvents.map((se) => (
                     <div key={se.id} style={styles.mergedActionRow}>
                       <span style={styles.mergedActionDate}>{fmtDateShort(se.date)}</span>
                       <button style={styles.editBtn} onClick={() => openEditEvent(se)}>
                         Edit
+                      </button>
+                      <button style={styles.duplicateBtn} onClick={() => duplicateEvent(se)}>
+                        Duplikat
                       </button>
                       <button style={styles.deleteBtn} onClick={() => deleteEvent(se.id)}>
                         Hapus
@@ -814,29 +855,31 @@ export default function JadwalOlahraga() {
 
       {modalOpen && (
         <div style={styles.overlay} onClick={() => setModalOpen(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>{editingEventId ? "Edit Event" : "Event Baru"}</div>
-            <input
-              style={styles.input}
-              placeholder="Nama event (mis. FIFA WORLD CUP 26)"
-              value={draft.name}
-              onChange={(e) => {
-                const name = e.target.value;
-                const key = name.trim().toLowerCase();
-                const known = eventLogos[key];
-                setDraft((d) => ({
-                  ...d,
-                  name,
-                  logo: !d.logo && known ? known : d.logo,
-                }));
-              }}
-            />
-            <input
-              style={styles.input}
-              placeholder="Round / sub-event (opsional, mis. British Grand Prix)"
-              value={draft.round}
-              onChange={(e) => setDraft({ ...draft, round: e.target.value })}
-            />
+            <div className="jo-form-row">
+              <input
+                style={styles.input}
+                placeholder="Nama event (mis. FIFA WORLD CUP 26)"
+                value={draft.name}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  const key = name.trim().toLowerCase();
+                  const known = eventLogos[key];
+                  setDraft((d) => ({
+                    ...d,
+                    name,
+                    logo: !d.logo && known ? known : d.logo,
+                  }));
+                }}
+              />
+              <input
+                style={styles.input}
+                placeholder="Round / sub-event (opsional, mis. British Grand Prix)"
+                value={draft.round}
+                onChange={(e) => setDraft({ ...draft, round: e.target.value })}
+              />
+            </div>
             <input
               type="date"
               style={styles.input}
@@ -1051,7 +1094,7 @@ export default function JadwalOlahraga() {
             setAuthError("");
           }}
         >
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>Login Developer</div>
             <p style={styles.mutedSmall}>
               Login pakai akun admin buat aktifin izin edit & hapus event. Pengunjung publik biasa
@@ -1097,7 +1140,7 @@ export default function JadwalOlahraga() {
 
       {logoModalOpen && (
         <div style={styles.overlay} onClick={() => setLogoModalOpen(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>Logo Channel</div>
             <p style={styles.mutedSmall}>
               Atur logo buat nama channel/platform tertentu. Begitu disimpan, logo ini otomatis
@@ -1173,7 +1216,7 @@ export default function JadwalOlahraga() {
 
       {eventLogoModalOpen && (
         <div style={styles.overlay} onClick={() => setEventLogoModalOpen(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>Logo Event</div>
             <p style={styles.mutedSmall}>
               Simpen logo buat nama event tertentu (mis. "Wimbledon", "FIFA World Cup"). Lain kali
@@ -1263,7 +1306,7 @@ export default function JadwalOlahraga() {
 
       {suggestModalOpen && (
         <div style={styles.overlay} onClick={() => setSuggestModalOpen(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>Kasih Saran</div>
             <p style={styles.mutedSmall}>
               Ada jadwal yang salah, event yang mau ditambahin, atau ide lain? Kasih tau di sini.
@@ -1305,7 +1348,7 @@ export default function JadwalOlahraga() {
 
       {inboxModalOpen && (
         <div style={styles.overlay} onClick={() => setInboxModalOpen(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+          <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>Saran Masuk</div>
             {suggestions.length === 0 && (
               <div style={styles.mutedSmall}>Belum ada saran yang masuk.</div>
@@ -1383,6 +1426,37 @@ export default function JadwalOlahraga() {
 
 const fontImports = `
 @import url('https://fonts.googleapis.com/css2?family=Teko:wght@600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap');
+
+/* Layout mobile-first, tapi dilebarin bertahap di layar lebih gede biar
+   nggak keliatan nyempit terus-terusan di desktop/browser */
+.jo-content {
+  max-width: 640px;
+}
+.jo-modal {
+  max-width: 420px;
+}
+@media (min-width: 900px) {
+  .jo-content { max-width: 820px; }
+  .jo-modal { max-width: 640px; }
+}
+@media (min-width: 1280px) {
+  .jo-content { max-width: 980px; }
+  .jo-modal { max-width: 720px; }
+}
+.jo-form-row {
+  display: flex;
+  flex-direction: column;
+}
+.jo-form-row > input {
+  flex: 1;
+  min-width: 0;
+}
+@media (min-width: 700px) {
+  .jo-form-row {
+    flex-direction: row;
+    gap: 10px;
+  }
+}
 `;
 
 const styles = {
@@ -1400,7 +1474,6 @@ const styles = {
     top: 0,
     zIndex: 20,
     background: "#14161A",
-    maxWidth: 640,
     margin: "0 auto",
     padding: "24px 0 20px",
     display: "flex",
@@ -1414,7 +1487,6 @@ const styles = {
     top: 0,
     zIndex: 20,
     background: "#14161A",
-    maxWidth: 640,
     margin: "0 auto",
     padding: "10px 0",
     display: "flex",
@@ -1517,14 +1589,13 @@ const styles = {
     fontFamily: "'Inter', sans-serif",
   },
   emptyState: {
-    maxWidth: 640,
     margin: "0 auto",
     color: "#767C89",
     fontSize: 14,
     padding: "40px 0",
     textAlign: "center",
   },
-  dateBlock: { maxWidth: 640, margin: "0 auto 22px" },
+  dateBlock: { margin: "0 auto 22px" },
   dateLabel: {
     position: "sticky",
     top: 136,
@@ -1737,6 +1808,14 @@ const styles = {
     cursor: "pointer",
     fontFamily: "'Inter', sans-serif",
   },
+  duplicateBtn: {
+    background: "none",
+    border: "none",
+    color: "#F2C14E",
+    fontSize: 12,
+    cursor: "pointer",
+    fontFamily: "'Inter', sans-serif",
+  },
   deleteBtn: {
     background: "none",
     border: "none",
@@ -1822,7 +1901,6 @@ const styles = {
     borderRadius: 4,
     padding: 20,
     width: "100%",
-    maxWidth: 420,
     maxHeight: "85vh",
     overflowY: "auto",
   },
