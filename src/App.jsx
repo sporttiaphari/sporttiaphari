@@ -58,6 +58,27 @@ function sortMatchesForDisplay(matches) {
   return withKeys.sort((a, b) => a.key - b.key).map((x) => x.m);
 }
 
+// Kelompokin pertandingan berdasarkan court/lapangan (kalau diisi), biar
+// jadwal cabor kayak tenis yang mainnya di beberapa court sekaligus bisa
+// ditampilin per-section, bukan satu list panjang campur aduk. Match tanpa
+// court dikelompokin sendiri (nggak dikasih judul section).
+function groupMatchesByCourt(matches) {
+  const groups = [];
+  const map = {};
+  matches.forEach((m) => {
+    const key = (m.court || "").trim();
+    if (!map[key]) {
+      map[key] = { court: key, matches: [] };
+      groups.push(map[key]);
+    }
+    map[key].matches.push(m);
+  });
+  groups.forEach((g) => {
+    g.matches = sortMatchesForDisplay(g.matches);
+  });
+  return groups;
+}
+
 
 // "Hari ini" versi tanggal lokal (bukan UTC) — penting krusial di sini,
 // soalnya kalau dipake tengah malam/dini hari, toISOString() bisa salah
@@ -76,6 +97,7 @@ const emptyMatch = () => ({
   teamA: "",
   teamB: "",
   title: "",
+  court: "",
   liveOns: [""],
   followedBy: false,
 });
@@ -794,56 +816,65 @@ export default function JadwalOlahraga() {
                 </div>
               )}
               <div style={styles.matchList}>
-                {sortMatchesForDisplay(matches).map((m) => (
-                    <div key={m.id} style={styles.matchRow}>
-                      <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
-                        {m.followedBy ? "FB" : m.time}
-                      </span>
-                      <span style={styles.matchTeams}>
-                        {ev.format === "single" ? (
-                          m.title
-                        ) : (
-                          <>
-                            {m.teamA} <span style={styles.vs}>vs</span> {m.teamB}
-                          </>
-                        )}
-                      </span>
-                      {m.liveOns && m.liveOns.filter(Boolean).length > 0 && (
-                        <span style={styles.matchLiveOn}>
-                          <span style={styles.matchLiveOnLabel}>LIVE ON</span>{" "}
-                          {m.liveOns.filter(Boolean).map((lv, i) => {
-                            const logo = lookupBroadcasterLogo(lv);
-                            return (
-                              <span
-                                key={i}
-                                style={logo ? styles.matchLiveOnChannelChip : styles.matchLiveOnChannelChipText}
-                              >
-                                {logo ? (
-                                  <>
-                                    <img
-                                      src={logo}
-                                      alt={lv}
-                                      title={lv}
-                                      style={styles.matchLiveOnLogo}
-                                      onError={(e) => {
-                                        e.target.style.display = "none";
-                                        e.target.nextSibling.style.display = "inline";
-                                        e.target.parentElement.style.background = "transparent";
-                                        e.target.parentElement.style.padding = "0";
-                                      }}
-                                    />
-                                    <span style={{ display: "none" }}>{lv}</span>
-                                  </>
-                                ) : (
-                                  lv
-                                )}
-                              </span>
-                            );
-                          })}
+                {groupMatchesByCourt(matches).map((group, gi) => (
+                  <React.Fragment key={gi}>
+                    {group.court && <div style={styles.courtLabel}>{group.court}</div>}
+                    {group.matches.map((m) => (
+                      <div key={m.id} style={styles.matchRow}>
+                        <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
+                          {m.followedBy ? "FB" : m.time}
                         </span>
-                      )}
-                    </div>
-                  ))}
+                        <span style={styles.matchTeams}>
+                          {ev.format === "single" ? (
+                            m.title
+                          ) : (
+                            <>
+                              {m.teamA} <span style={styles.vs}>vs</span> {m.teamB}
+                            </>
+                          )}
+                        </span>
+                        {m.liveOns && m.liveOns.filter(Boolean).length > 0 && (
+                          <span style={styles.matchLiveOn}>
+                            <span style={styles.matchLiveOnLabel}>LIVE ON</span>{" "}
+                            {m.liveOns.filter(Boolean).map((lv, i) => {
+                              const logo = lookupBroadcasterLogo(lv);
+                              return (
+                                <span
+                                  key={i}
+                                  style={
+                                    logo
+                                      ? styles.matchLiveOnChannelChip
+                                      : styles.matchLiveOnChannelChipText
+                                  }
+                                >
+                                  {logo ? (
+                                    <>
+                                      <img
+                                        src={logo}
+                                        alt={lv}
+                                        title={lv}
+                                        style={styles.matchLiveOnLogo}
+                                        onError={(e) => {
+                                          e.target.style.display = "none";
+                                          e.target.nextSibling.style.display = "inline";
+                                          e.target.parentElement.style.background = "transparent";
+                                          e.target.parentElement.style.padding = "0";
+                                        }}
+                                      />
+                                      <span style={{ display: "none" }}>{lv}</span>
+                                    </>
+                                  ) : (
+                                    lv
+                                  )}
+                                </span>
+                              );
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </React.Fragment>
+                ))}
                 {matches.length === 0 && (
                   <div style={styles.mutedSmall}>Belum ada pertandingan</div>
                 )}
@@ -1031,6 +1062,12 @@ export default function JadwalOlahraga() {
                   />
                   {" "}FB (mengikuti pertandingan sebelumnya, tanpa jam pasti)
                 </label>
+                <input
+                  style={styles.courtInput}
+                  placeholder="Court/lapangan (opsional, mis. Court 1) — buat pisahin section"
+                  value={m.court || ""}
+                  onChange={(e) => updateDraftMatch(m.id, "court", e.target.value)}
+                />
                 <div style={styles.matchEditorLabel}>Live On pertandingan ini</div>
                 {m.liveOns.map((lv, lvIdx) => (
                   <div key={lvIdx} style={styles.matchEditRow}>
@@ -1825,6 +1862,15 @@ const styles = {
     fontFamily: "'Inter', sans-serif",
   },
   matchList: { display: "flex", flexDirection: "column", gap: 6 },
+  courtLabel: {
+    fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    color: "#3DDC97",
+    textTransform: "uppercase",
+    marginTop: 8,
+    marginBottom: 2,
+  },
   matchRow: {
     display: "flex",
     alignItems: "baseline",
@@ -1983,6 +2029,19 @@ const styles = {
     fontFamily: "'Inter', sans-serif",
     boxSizing: "border-box",
     outline: "none",
+  },
+  courtInput: {
+    width: "100%",
+    background: "#14161A",
+    border: "1px solid #2C303A",
+    borderRadius: 3,
+    color: "#EDEFF3",
+    padding: "8px 8px",
+    fontSize: 12,
+    fontFamily: "'Inter', sans-serif",
+    boxSizing: "border-box",
+    outline: "none",
+    marginBottom: 8,
   },
   timeInputSmall: {
     background: "#14161A",
