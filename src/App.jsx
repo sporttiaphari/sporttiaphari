@@ -821,20 +821,22 @@ export default function JadwalOlahraga() {
                     {group.court && <div style={styles.courtLabel}>{group.court}</div>}
                     {group.matches.map((m) => (
                       <div key={m.id} style={styles.matchRow}>
-                        <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
-                          {m.followedBy ? "FB" : m.time}
-                        </span>
-                        <span style={styles.matchTeams}>
-                          {ev.format === "single" ? (
-                            m.title
-                          ) : (
-                            <>
-                              {m.teamA} <span style={styles.vs}>vs</span> {m.teamB}
-                            </>
-                          )}
-                        </span>
+                        <div style={styles.matchTopRow}>
+                          <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
+                            {m.followedBy ? "FB" : m.time}
+                          </span>
+                          <span style={styles.matchTeams}>
+                            {ev.format === "single" ? (
+                              m.title
+                            ) : (
+                              <>
+                                {m.teamA} <span style={styles.vs}>vs</span> {m.teamB}
+                              </>
+                            )}
+                          </span>
+                        </div>
                         {m.liveOns && m.liveOns.filter(Boolean).length > 0 && (
-                          <span style={styles.matchLiveOn}>
+                          <div style={styles.matchLiveOn}>
                             <span style={styles.matchLiveOnLabel}>LIVE ON</span>{" "}
                             {m.liveOns.filter(Boolean).map((lv, i) => {
                               const logo = lookupBroadcasterLogo(lv);
@@ -869,7 +871,7 @@ export default function JadwalOlahraga() {
                                 </span>
                               );
                             })}
-                          </span>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -1873,12 +1875,21 @@ const styles = {
   },
   matchRow: {
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "baseline",
-    gap: 12,
+    columnGap: 12,
+    rowGap: 4,
     padding: "8px 10px",
     background: "#14161A",
     borderRadius: 3,
     border: "1px solid #2C303A",
+  },
+  matchTopRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 12,
+    flex: "1 1 auto",
+    minWidth: 160,
   },
   matchTime: {
     fontFamily: "'IBM Plex Mono', monospace",
@@ -1898,12 +1909,11 @@ const styles = {
     fontFamily: "'IBM Plex Mono', monospace",
     fontSize: 11,
     color: "#F2C14E",
-    flexShrink: 0,
     display: "flex",
     alignItems: "center",
     flexWrap: "wrap",
     gap: 4,
-    maxWidth: 180,
+    flexShrink: 0,
   },
   matchLiveOnChannelChip: {
     display: "inline-flex",
