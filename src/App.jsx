@@ -18,20 +18,42 @@ function fmtDateShort(dateStr) {
   return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-// Satu "hari siaran" dihitung dari jam 06:00 s.d. 05:59 keesokan harinya
-// (kayak jadwal TV), bukan per tanggal kalender biasa. Jadi pertandingan
-// jam 01:00 tanggal 13 sebenernya masih masuk hari siaran tanggal 12.
-function getBroadcastDate(dateStr, timeStr) {
-  if (!timeStr) return dateStr; // match FB tanpa jam, pakai tanggal apa adanya
-  const hour = parseInt(timeStr.split(":")[0], 10);
-  if (Number.isNaN(hour) || hour >= 6) return dateStr;
+// Semua jam yang di-input admin dianggap WIB (UTC+7). Fungsi ini convert
+// ke zona waktu perangkat pengunjung secara otomatis — orang di WITA/WIT
+// atau luar negeri bakal lihat jam yang udah disesuaikan, bukan WIB mentah.
+function formatLocalTime(dateStr, timeStr) {
+  if (!timeStr) return timeStr;
   const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d); // dibikin di waktu lokal, bukan UTC
-  date.setDate(date.getDate() - 1);
-  const yy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
+  const [hh, mm] = timeStr.split(":").map(Number);
+  if ([y, m, d, hh, mm].some((n) => Number.isNaN(n))) return timeStr;
+  const utcMs = Date.UTC(y, m - 1, d, hh, mm) - 7 * 60 * 60 * 1000; // WIB -> UTC
+  return new Date(utcMs).toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+// Sama konsepnya kayak pola siaran 06:00-05:59, tapi dihitung berdasarkan
+// jam LOKAL pengunjung, bukan WIB tetap. Match yang FB (tanpa jam pasti)
+// tetep pakai tanggal aslinya, karena nggak ada jam yang bisa dikonversi.
+function getLocalBroadcastDate(dateStr, timeStr) {
+  if (!timeStr) return dateStr;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  if ([y, m, d, hh, mm].some((n) => Number.isNaN(n))) return dateStr;
+  const utcMs = Date.UTC(y, m - 1, d, hh, mm) - 7 * 60 * 60 * 1000; // WIB -> UTC
+  const local = new Date(utcMs);
+  let ly = local.getFullYear();
+  let lm = local.getMonth();
+  let ld = local.getDate();
+  if (local.getHours() < 6) {
+    const prev = new Date(ly, lm, ld - 1);
+    ly = prev.getFullYear();
+    lm = prev.getMonth();
+    ld = prev.getDate();
+  }
+  return `${ly}-${String(lm + 1).padStart(2, "0")}-${String(ld).padStart(2, "0")}`;
 }
 
 // Posisi jam dalam satu "hari siaran": 06:00 dianggap paling awal (0),
@@ -583,7 +605,7 @@ export default function JadwalOlahraga() {
       return;
     }
     ev.matches.forEach((m) => {
-      addToBucket(getBroadcastDate(ev.date, m.time), m);
+      addToBucket(getLocalBroadcastDate(ev.date, m.time), m);
     });
   });
   const sortedDates = Object.keys(byDate).sort();
@@ -654,7 +676,8 @@ export default function JadwalOlahraga() {
               <div style={styles.eyebrow}>JADWAL OLAHRAGA</div>
               <div style={styles.headline}>@sporttiaphari</div>
               <div style={styles.headerNote}>
-                Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan.
+                Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan. Jam
+                pertandingan otomatis disesuaikan ke zona waktu perangkat kamu.
               </div>
               {isAdmin && (
                 <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>
@@ -689,7 +712,7 @@ export default function JadwalOlahraga() {
       {sortedDates.map((date) => (
         <section key={date} className="jo-content" style={styles.dateBlock}>
           <div style={{ ...styles.dateLabel, top: headerHeight }}>
-            {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 WIB</span>
+            {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 waktu lokal kamu</span>
           </div>
           {getSortedGroupsForDate(date).map(({ event: ev, matches, sourceEvents }, idx, arr) => (
             <div key={sourceEvents[0].id} style={styles.eventCard}>
@@ -823,7 +846,7 @@ export default function JadwalOlahraga() {
                       <div key={m.id} style={styles.matchRow}>
                         <div style={styles.matchTopRow}>
                           <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
-                            {m.followedBy ? "FB" : m.time}
+                            {m.followedBy ? "FB" : formatLocalTime(ev.date, m.time)}
                           </span>
                           <span style={styles.matchTeams}>
                             {ev.format === "single" ? (
