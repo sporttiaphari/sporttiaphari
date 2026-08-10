@@ -8,14 +8,14 @@ Platform jadwal olahraga harian, siap deploy ke domain sendiri.
 2. Isi nama project (mis. `sporttiaphari`), bikin password database (simpan baik-baik), pilih region terdekat (Singapore paling deket ke Indonesia)
 3. Tunggu ± 2 menit sampai project selesai dibuatin
 4. Di sidebar kiri, buka **SQL Editor** → **New query**
-5. **Sebelum di-run**, buka file `supabase-setup.sql` di folder ini, ganti dua tulisan `email-lo@contoh.com` jadi email yang mau lo pakai buat login sebagai admin
-6. Copy-paste seluruh isi file itu → klik **Run**
-   - Ini bikin tabel `kv_store` tempat semua data disimpen, ngaktifin akses publik buat baca, realtime, dan yang paling penting: **cuma email yang lo tulis tadi yang boleh nulis/edit/hapus data**
-7. Buka **Settings** (ikon gear) → **API**
+5. **Copy-paste seluruh isi file `supabase-setup.sql`** → klik **Run**
+   - Script ini sudah memakai email admin `sporttiaphari@outlook.com`. Kalau email lo beda, ganti dulu di dalam file SQL sebelum di-run.
+   - Ini bikin tabel `kv_store` + `suggestions`, aktifin RLS (cuma admin yang boleh tulis), realtime, **dan Storage bucket `logos`**.
+6. Buka **Settings** (ikon gear) → **API**
    - Copy nilai **Project URL**
    - Copy nilai **anon public** key
-8. Buka **Authentication** (ikon orang) di sidebar → tab **Users** → **Add user** → **Create new user**
-   - Isi email (harus **persis sama** kayak yang lo tulis di SQL tadi) dan password
+7. Buka **Authentication** (ikon orang) di sidebar → tab **Users** → **Add user** → **Create new user**
+   - Isi email (harus **persis sama** kayak di SQL) dan password
    - Centang **Auto Confirm User** biar langsung aktif tanpa perlu klik link email
    - Klik **Create user**
 
@@ -29,7 +29,7 @@ Ini akun **satu-satunya** yang bisa login dan edit data di situs lo. Nggak ada t
    VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
    VITE_SUPABASE_ANON_KEY=eyJhbGci...
    ```
-3. Buka `src/App.jsx`, cari baris `const ADMIN_EMAIL = "email-lo@contoh.com";` di bagian atas file, ganti jadi email admin yang sama persis kayak yang lo pakai di langkah 1.8
+3. Buka `src/App.jsx`, pastikan baris `const ADMIN_EMAIL = "sporttiaphari@outlook.com";` sudah sesuai email admin lo.
 
 ## 3. Coba jalanin di komputer lo dulu
 
@@ -41,7 +41,6 @@ npm run dev
 ```
 
 Buka link yang muncul di terminal (biasanya `http://localhost:5173`). Klik tombol **Login** di header, masukin email + password akun admin yang lo bikin tadi. Kalau tombol Edit/Hapus/+ Event muncul, berarti semuanya udah kekonfigurasi bener.
-
 
 ## 4. Deploy ke domain sendiri
 
@@ -62,18 +61,18 @@ Alternatif: [Netlify](https://netlify.com) juga bisa, caranya mirip banget (drag
 
 ## Struktur data
 
-Semua data disimpen di tabel `kv_store` dengan 2 baris utama:
+Semua data disimpen di tabel `kv_store` dengan 3 key utama:
 - `events` → array semua event + jadwal pertandingan
-- `broadcasterLogos` → daftar logo channel custom yang di-set lewat mode login
+- `broadcasterLogos` → daftar logo channel custom (hanya URL, bukan base64)
+- `eventLogos` → daftar logo event (hanya URL, bukan base64)
+
+**Logo sekarang disimpan di Supabase Storage (bucket `logos`)**, database cuma simpan URL HTTPS-nya. Ini jauh lebih aman dan hemat space.
 
 Status login disimpen otomatis sama Supabase di browser (bukan custom logic lagi), jadi begitu lo login di satu device, tetep login sampai lo logout manual atau clear browser data.
 
-## Soal Keamanan (udah lebih aman dari versi awal)
+## Soal Keamanan (udah lebih aman)
 
-Sekarang cuma akun dengan email yang lo tentuin di `ADMIN_EMAIL` (dan di RLS policy Supabase) yang bisa login dan edit data — dicek dua lapis: di kode frontend DAN di level database (RLS policy), jadi walaupun ada yang coba akses database langsung lewat API (skip UI-nya), tetep ketolak kalau bukan akun lo.
-
-Beberapa hal yang masih perlu diperhatiin ke depannya kalau situsnya makin gede:
-- **Jangan share password akun admin ke siapa pun**, dan pakai password yang kuat
-- Supabase nyaranin aktifin **2FA** buat akun dashboard Supabase lo sendiri (beda sama akun admin situs) — ini di Account Settings Supabase
-- Kalau nanti mau lebih dari satu admin (tim), tinggal bikin lebih banyak user di Authentication > Users, terus ubah policy SQL-nya jadi cek list email atau bikin tabel `admins` terpisah
-- Rate limiting & validasi input tetap jadi PR berikutnya kalau trafiknya udah tinggi (lihat rekomendasi lain yang udah dibahas sebelumnya)
+- Cuma akun dengan email yang ditentukan di `ADMIN_EMAIL` + RLS policy yang bisa login dan edit data (dicek dua lapis: frontend + database).
+- **Logo channel & logo event** tidak lagi disimpan sebagai base64 di Postgres. Mereka di-upload ke Storage dengan policy ketat (hanya admin yang boleh upload/hapus, publik cuma boleh baca).
+- File size logo dibatasi max 1.5 MB.
+- Jangan share password akun admin, dan aktifkan 2FA di akun dashboard Supabase lo.

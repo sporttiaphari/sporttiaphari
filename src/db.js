@@ -21,6 +21,51 @@ export async function setKV(key, value) {
   if (error) throw error;
 }
 
+/**
+ * Upload logo ke Supabase Storage (bucket "logos").
+ * Menerima File atau dataURL (base64). Mengembalikan public URL HTTPS.
+ * Logo disimpan sebagai file di Storage, BUKAN base64 di database →
+ * lebih aman, lebih ringan, dan scalable. Database hanya simpan URL.
+ */
+export async function uploadLogo(fileOrDataUrl, folder = "misc") {
+  let file;
+  let contentType = "image/png";
+
+  if (typeof fileOrDataUrl === "string" && fileOrDataUrl.startsWith("data:")) {
+    const res = await fetch(fileOrDataUrl);
+    const blob = await res.blob();
+    contentType = blob.type || "image/png";
+    const ext = contentType.split("/")[1] || "png";
+    file = new File([blob], `logo.${ext}`, { type: contentType });
+  } else if (fileOrDataUrl instanceof File || fileOrDataUrl instanceof Blob) {
+    file = fileOrDataUrl;
+    contentType = file.type || "image/png";
+  } else {
+    // already a normal URL (http/https)
+    return fileOrDataUrl;
+  }
+
+  // batasi ukuran (max ~1.5 MB) supaya tidak bikin Storage / DB bengkak
+  if (file.size > 1.5 * 1024 * 1024) {
+    throw new Error("Ukuran logo terlalu besar (maks 1.5 MB)");
+  }
+
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const safeExt = ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext) ? ext : "png";
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+
+  const { error } = await supabase.storage.from("logos").upload(path, file, {
+    cacheControl: "31536000", // 1 year
+    upsert: false,
+    contentType,
+  });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("logos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 // Dengerin perubahan realtime buat key tertentu, biar semua pengunjung
 // otomatis lihat update tanpa perlu refresh manual.
 export function subscribeKV(key, onChange) {

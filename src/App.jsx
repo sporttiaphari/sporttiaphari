@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
-import { getKV, setKV, subscribeKV, submitSuggestion, fetchSuggestions, deleteSuggestion, subscribeSuggestions } from "./db";
+import { getKV, setKV, subscribeKV, submitSuggestion, fetchSuggestions, deleteSuggestion, subscribeSuggestions, uploadLogo } from "./db";
 import { supabase } from "./supabaseClient";
 
 // tokens: bg #14161A, elev #1D2027, text #EDEFF3, muted #767C89
@@ -214,6 +214,7 @@ const ADMIN_EMAIL = "sporttiaphari@outlook.com";
 export default function JadwalOlahraga() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false); // loading state saat simpan event / logo
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState(emptyEvent());
   const [editingEventId, setEditingEventId] = useState(null);
@@ -380,7 +381,16 @@ export default function JadwalOlahraga() {
   const saveEventLogo = async (name, logo) => {
     const key = name.trim().toLowerCase();
     if (!key || !logo) return;
-    const next = { ...eventLogos, [key]: logo };
+    let finalLogo = logo;
+    // Pastikan tidak pernah simpan base64 ke database
+    if (typeof finalLogo === "string" && finalLogo.startsWith("data:")) {
+      try {
+        finalLogo = await uploadLogo(finalLogo, "events");
+      } catch (e) {
+        throw e;
+      }
+    }
+    const next = { ...eventLogos, [key]: finalLogo };
     setEventLogos(next);
     try {
       await setKV("eventLogos", next);
@@ -402,19 +412,28 @@ export default function JadwalOlahraga() {
 
   const saveCustomLogo = async () => {
     const name = logoNameInput.trim().toLowerCase();
-    const url = logoUrlInput.trim();
+    let url = logoUrlInput.trim();
     if (!name || !url) return;
-    const next = { ...customLogos, [name]: url };
-    setCustomLogos(next);
-    setLogoNameInput("");
-    setLogoUrlInput("");
+    if (saving) return;
+
+    setSaving(true);
     try {
+      // Kalau masih dataURL, upload ke Storage dulu (DB hanya simpan URL)
+      if (url.startsWith("data:")) {
+        url = await uploadLogo(url, "channels");
+      }
+      const next = { ...customLogos, [name]: url };
+      setCustomLogos(next);
+      setLogoNameInput("");
+      setLogoUrlInput("");
       await setKV("broadcasterLogos", next);
       setToast("Logo channel disimpan");
     } catch (e) {
-      setToast("Gagal simpan logo");
+      setToast(e.message || "Gagal simpan logo");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setToast(""), 2500);
     }
-    setTimeout(() => setToast(""), 2000);
   };
 
   const removeCustomLogo = async (name) => {
@@ -548,21 +567,46 @@ export default function JadwalOlahraga() {
       setModalOpen(false);
       return;
     }
-    const cleanMatches = draft.matches
-      .filter((m) => (m.time || m.followedBy) && (m.teamA || m.teamB || m.title))
-      .map((m) => ({ ...m, liveOns: m.liveOns.map((x) => x.trim()).filter(Boolean) }));
-    const cleanBroadcasters = draft.broadcasters.map((b) => b.trim()).filter(Boolean);
-    const cleaned = { ...draft, matches: cleanMatches, broadcasters: cleanBroadcasters };
-    if (cleaned.logo) {
-      saveEventLogo(cleaned.name, cleaned.logo);
+    if (saving) return; // prevent double-submit
+
+    setSaving(true);
+    try {
+      const cleanMatches = draft.matches
+        .filter((m) => (m.time || m.followedBy) && (m.teamA || m.teamB || m.title))
+        .map((m) => ({ ...m, liveOns: m.liveOns.map((x) => x.trim()).filter(Boolean) }));
+      const cleanBroadcasters = draft.broadcasters.map((b) => b.trim()).filter(Boolean);
+      let cleaned = { ...draft, matches: cleanMatches, broadcasters: cleanBroadcasters };
+
+      // Kalau logo masih dataURL (base64), upload ke Storage dulu biar DB aman
+      if (cleaned.logo && cleaned.logo.startsWith("data:")) {
+        try {
+          const publicUrl = await uploadLogo(cleaned.logo, "events");
+          cleaned = { ...cleaned, logo: publicUrl };
+        } catch (uploadErr) {
+          setToast(uploadErr.message || "Gagal upload logo");
+          setTimeout(() => setToast(""), 3000);
+          setSaving(false);
+          return;
+        }
+      }
+
+      if (cleaned.logo) {
+        await saveEventLogo(cleaned.name, cleaned.logo);
+      }
+
+      const next = editingEventId
+        ? events.map((e) => (e.id === editingEventId ? cleaned : e))
+        : [...events, cleaned];
+      await persist(next);
+      setModalOpen(false);
+      setToast(editingEventId ? "Event diperbarui" : "Event ditambahkan");
+      setTimeout(() => setToast(""), 2000);
+    } catch (e) {
+      setToast("Gagal simpan event, coba lagi");
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setSaving(false);
     }
-    const next = editingEventId
-      ? events.map((e) => (e.id === editingEventId ? cleaned : e))
-      : [...events, cleaned];
-    await persist(next);
-    setModalOpen(false);
-    setToast(editingEventId ? "Event diperbarui" : "Event ditambahkan");
-    setTimeout(() => setToast(""), 2000);
   };
 
   const deleteEvent = async (id) => {
@@ -942,22 +986,36 @@ export default function JadwalOlahraga() {
               value={draft.date}
               onChange={(e) => setDraft({ ...draft, date: e.target.value })}
             />
-            <label style={styles.uploadBtn}>
-              Upload Gambar Logo
+            <label style={{ ...styles.uploadBtn, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Mengupload logo..." : "Upload Gambar Logo"}
               <input
                 type="file"
                 accept="image/*"
                 style={styles.hiddenFileInput}
-                onChange={(e) =>
-                  readImageFile(e.target.files[0], (dataUrl) => setDraft({ ...draft, logo: dataUrl }))
-                }
+                disabled={saving}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setSaving(true);
+                  try {
+                    const publicUrl = await uploadLogo(file, "events");
+                    setDraft((d) => ({ ...d, logo: publicUrl }));
+                  } catch (err) {
+                    setToast(err.message || "Gagal upload logo");
+                    setTimeout(() => setToast(""), 3000);
+                  } finally {
+                    setSaving(false);
+                    e.target.value = ""; // reset input
+                  }
+                }}
               />
             </label>
             <input
               style={styles.input}
               placeholder="atau tempel URL logo (opsional)"
-              value={draft.logo.startsWith("data:") ? "" : draft.logo}
+              value={draft.logo && draft.logo.startsWith("data:") ? "" : draft.logo || ""}
               onChange={(e) => setDraft({ ...draft, logo: e.target.value })}
+              disabled={saving}
             />
             {draft.logo && (
               <div style={styles.logoPreviewRow}>
@@ -1137,11 +1195,27 @@ export default function JadwalOlahraga() {
             </button>
 
             <div style={styles.modalActions}>
-              <button style={styles.secondaryBtn} onClick={() => setModalOpen(false)}>
+              <button
+                style={styles.secondaryBtn}
+                onClick={() => setModalOpen(false)}
+                disabled={saving}
+              >
                 Batal
               </button>
-              <button style={styles.primaryBtn} onClick={saveEvent}>
-                {editingEventId ? "Simpan Perubahan" : "Simpan"}
+              <button
+                style={{
+                  ...styles.primaryBtn,
+                  opacity: saving ? 0.7 : 1,
+                  cursor: saving ? "not-allowed" : "pointer",
+                }}
+                onClick={saveEvent}
+                disabled={saving}
+              >
+                {saving
+                  ? "Menyimpan..."
+                  : editingEventId
+                  ? "Simpan Perubahan"
+                  : "Simpan"}
               </button>
             </div>
           </div>
@@ -1215,20 +1289,36 @@ export default function JadwalOlahraga() {
               value={logoNameInput}
               onChange={(e) => setLogoNameInput(e.target.value)}
             />
-            <label style={styles.uploadBtn}>
-              Upload Gambar Logo
+            <label style={{ ...styles.uploadBtn, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Mengupload..." : "Upload Gambar Logo"}
               <input
                 type="file"
                 accept="image/*"
                 style={styles.hiddenFileInput}
-                onChange={(e) => readImageFile(e.target.files[0], setLogoUrlInput)}
+                disabled={saving}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setSaving(true);
+                  try {
+                    const publicUrl = await uploadLogo(file, "channels");
+                    setLogoUrlInput(publicUrl);
+                  } catch (err) {
+                    setToast(err.message || "Gagal upload logo");
+                    setTimeout(() => setToast(""), 3000);
+                  } finally {
+                    setSaving(false);
+                    e.target.value = "";
+                  }
+                }}
               />
             </label>
             <input
               style={styles.input}
               placeholder="atau tempel URL logo"
-              value={logoUrlInput.startsWith("data:") ? "" : logoUrlInput}
+              value={logoUrlInput && logoUrlInput.startsWith("data:") ? "" : logoUrlInput || ""}
               onChange={(e) => setLogoUrlInput(e.target.value)}
+              disabled={saving}
             />
             {logoUrlInput && (
               <div style={styles.logoPreviewRow}>
@@ -1244,8 +1334,16 @@ export default function JadwalOlahraga() {
                 </button>
               </div>
             )}
-            <button style={styles.primaryBtn} onClick={saveCustomLogo}>
-              Simpan Logo
+            <button
+              style={{
+                ...styles.primaryBtn,
+                opacity: saving ? 0.7 : 1,
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+              onClick={saveCustomLogo}
+              disabled={saving}
+            >
+              {saving ? "Menyimpan..." : "Simpan Logo"}
             </button>
 
             <div style={styles.matchEditorLabel}>Logo Tersimpan</div>
@@ -1291,20 +1389,40 @@ export default function JadwalOlahraga() {
               value={eventLogoNameInput}
               onChange={(e) => setEventLogoNameInput(e.target.value)}
             />
-            <label style={styles.uploadBtn}>
-              Upload Gambar Logo
+            <label style={{ ...styles.uploadBtn, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Mengupload..." : "Upload Gambar Logo"}
               <input
                 type="file"
                 accept="image/*"
                 style={styles.hiddenFileInput}
-                onChange={(e) => readImageFile(e.target.files[0], setEventLogoUrlInput)}
+                disabled={saving}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setSaving(true);
+                  try {
+                    const publicUrl = await uploadLogo(file, "events");
+                    setEventLogoUrlInput(publicUrl);
+                  } catch (err) {
+                    setToast(err.message || "Gagal upload logo");
+                    setTimeout(() => setToast(""), 3000);
+                  } finally {
+                    setSaving(false);
+                    e.target.value = "";
+                  }
+                }}
               />
             </label>
             <input
               style={styles.input}
               placeholder="atau tempel URL logo"
-              value={eventLogoUrlInput.startsWith("data:") ? "" : eventLogoUrlInput}
+              value={
+                eventLogoUrlInput && eventLogoUrlInput.startsWith("data:")
+                  ? ""
+                  : eventLogoUrlInput || ""
+              }
               onChange={(e) => setEventLogoUrlInput(e.target.value)}
+              disabled={saving}
             />
             {eventLogoUrlInput && (
               <div style={styles.logoPreviewRow}>
@@ -1325,17 +1443,30 @@ export default function JadwalOlahraga() {
               </div>
             )}
             <button
-              style={styles.primaryBtn}
-              onClick={() => {
+              style={{
+                ...styles.primaryBtn,
+                opacity: saving ? 0.7 : 1,
+                cursor: saving ? "not-allowed" : "pointer",
+              }}
+              disabled={saving}
+              onClick={async () => {
                 if (!eventLogoNameInput.trim() || !eventLogoUrlInput.trim()) return;
-                saveEventLogo(eventLogoNameInput, eventLogoUrlInput);
-                setEventLogoNameInput("");
-                setEventLogoUrlInput("");
-                setToast("Logo event disimpan");
-                setTimeout(() => setToast(""), 2000);
+                if (saving) return;
+                setSaving(true);
+                try {
+                  await saveEventLogo(eventLogoNameInput, eventLogoUrlInput);
+                  setEventLogoNameInput("");
+                  setEventLogoUrlInput("");
+                  setToast("Logo event disimpan");
+                } catch (e) {
+                  setToast(e.message || "Gagal simpan logo event");
+                } finally {
+                  setSaving(false);
+                  setTimeout(() => setToast(""), 2500);
+                }
               }}
             >
-              Simpan Logo
+              {saving ? "Menyimpan..." : "Simpan Logo"}
             </button>
 
             <div style={styles.matchEditorLabel}>Logo Tersimpan</div>
