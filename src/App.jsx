@@ -216,6 +216,7 @@ export default function JadwalOlahraga() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false); // loading state saat simpan event / logo
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState(emptyEvent());
   const [editingEventId, setEditingEventId] = useState(null);
@@ -759,6 +760,19 @@ export default function JadwalOlahraga() {
           )}
         </div>
         <div style={styles.headerActions}>
+          {/* Search button — muncul di public & developer */}
+          <button
+            style={{
+              ...(isAdmin ? styles.lockBtn : styles.devToggleBtn),
+              ...(searchOpen || searchQuery ? styles.searchBtnActive : {}),
+            }}
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label="Cari jadwal"
+            title="Cari"
+          >
+            ⌕
+          </button>
+
           {isAdmin ? (
             <>
               <button style={styles.lockBtn} onClick={() => setInboxModalOpen(true)}>
@@ -776,36 +790,42 @@ export default function JadwalOlahraga() {
         </div>
       </header>
 
-      {/* Search bar */}
-      <div className="jo-content" style={styles.searchBarWrap}>
-        <div style={styles.searchInputWrap}>
-          <span style={styles.searchIcon}>⌕</span>
-          <input
-            type="search"
-            style={styles.searchInput}
-            placeholder="Cari event, tim, channel..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              style={styles.searchClearBtn}
-              onClick={() => setSearchQuery("")}
-              aria-label="Hapus pencarian"
-            >
-              ×
-            </button>
+      {/* Search bar — hanya muncul saat tombol search diklik atau ada query aktif */}
+      {(searchOpen || searchQuery) && (
+        <div className="jo-content" style={styles.searchBarWrap}>
+          <div style={styles.searchInputWrap}>
+            <span style={styles.searchIcon}>⌕</span>
+            <input
+              type="search"
+              style={styles.searchInput}
+              placeholder="Cari event, tim, channel..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              autoFocus={searchOpen}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                style={styles.searchClearBtn}
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchOpen(false);
+                }}
+                aria-label="Hapus pencarian"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {q && sortedDates.length > 0 && (
+            <div style={styles.searchResultHint}>
+              {filteredEvents.length} event ditemukan
+            </div>
           )}
         </div>
-        {q && sortedDates.length > 0 && (
-          <div style={styles.searchResultHint}>
-            {filteredEvents.length} event ditemukan
-          </div>
-        )}
-      </div>
+      )}
 
       {sortedDates.length === 0 && (
         <div className="jo-content" style={styles.emptyState}>
@@ -1842,6 +1862,11 @@ const styles = {
     fontSize: 12,
     cursor: "pointer",
     fontFamily: "'Inter', sans-serif",
+  },
+  searchBtnActive: {
+    background: "#3DDC97",
+    color: "#14161A",
+    borderColor: "#3DDC97",
   },
   searchBarWrap: {
     margin: "0 auto 12px",
