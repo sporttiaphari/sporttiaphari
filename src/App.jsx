@@ -215,6 +215,7 @@ export default function JadwalOlahraga() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false); // loading state saat simpan event / logo
+  const [searchQuery, setSearchQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState(emptyEvent());
   const [editingEventId, setEditingEventId] = useState(null);
@@ -614,6 +615,34 @@ export default function JadwalOlahraga() {
     await persist(events.filter((e) => e.id !== id));
   };
 
+  // ---- Search / Filter ----
+  // Cari di: nama event, round, channel, nama tim, court, liveOn
+  const q = searchQuery.trim().toLowerCase();
+  const filteredEvents = !q
+    ? events
+    : events
+        .map((ev) => {
+          const eventMatch =
+            (ev.name || "").toLowerCase().includes(q) ||
+            (ev.round || "").toLowerCase().includes(q) ||
+            (ev.broadcasters || []).some((b) => (b || "").toLowerCase().includes(q));
+
+          const matchingMatches = (ev.matches || []).filter((m) => {
+            return (
+              (m.teamA || "").toLowerCase().includes(q) ||
+              (m.teamB || "").toLowerCase().includes(q) ||
+              (m.title || "").toLowerCase().includes(q) ||
+              (m.court || "").toLowerCase().includes(q) ||
+              (m.liveOns || []).some((lv) => (lv || "").toLowerCase().includes(q))
+            );
+          });
+
+          if (eventMatch) return ev; // event match → tampilkan semua match-nya
+          if (matchingMatches.length > 0) return { ...ev, matches: matchingMatches };
+          return null;
+        })
+        .filter(Boolean);
+
   // group by "hari siaran" (06:00-05:59), bukan per event secara utuh —
   // matches dalam satu event bisa kepisah ke 2 hari siaran kalau ada yang
   // sebelum & sesudah jam 6 pagi. Di-key pakai NAMA event (bukan id),
@@ -621,7 +650,7 @@ export default function JadwalOlahraga() {
   // (mis. pertandingan lewat tengah malam) otomatis gabung lagi jadi satu
   // kartu kalau nama-nya sama dan jatuh di bucket hari yang sama.
   const byDate = {};
-  events.forEach((ev) => {
+  filteredEvents.forEach((ev) => {
     const nameKey = ev.name.trim().toLowerCase();
     const addToBucket = (bd, m) => {
       if (!byDate[bd]) byDate[bd] = {};
@@ -747,9 +776,42 @@ export default function JadwalOlahraga() {
         </div>
       </header>
 
+      {/* Search bar */}
+      <div className="jo-content" style={styles.searchBarWrap}>
+        <div style={styles.searchInputWrap}>
+          <span style={styles.searchIcon}>⌕</span>
+          <input
+            type="search"
+            style={styles.searchInput}
+            placeholder="Cari event, tim, channel..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              style={styles.searchClearBtn}
+              onClick={() => setSearchQuery("")}
+              aria-label="Hapus pencarian"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {q && sortedDates.length > 0 && (
+          <div style={styles.searchResultHint}>
+            {filteredEvents.length} event ditemukan
+          </div>
+        )}
+      </div>
+
       {sortedDates.length === 0 && (
         <div className="jo-content" style={styles.emptyState}>
-          Belum ada jadwal. Tambah event buat mulai isi agenda.
+          {q
+            ? `Tidak ada hasil untuk “${searchQuery.trim()}”`
+            : "Belum ada jadwal. Tambah event buat mulai isi agenda."}
         </div>
       )}
 
@@ -1779,6 +1841,51 @@ const styles = {
     padding: "9px 12px",
     fontSize: 12,
     cursor: "pointer",
+    fontFamily: "'Inter', sans-serif",
+  },
+  searchBarWrap: {
+    margin: "0 auto 12px",
+    paddingTop: 4,
+  },
+  searchInputWrap: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+  },
+  searchIcon: {
+    position: "absolute",
+    left: 12,
+    color: "#767C89",
+    fontSize: 15,
+    pointerEvents: "none",
+    lineHeight: 1,
+  },
+  searchInput: {
+    width: "100%",
+    background: "#1D2027",
+    border: "1px solid #2A2E38",
+    borderRadius: 8,
+    padding: "10px 36px 10px 34px",
+    color: "#EDEFF3",
+    fontSize: 14,
+    fontFamily: "'Inter', sans-serif",
+    outline: "none",
+  },
+  searchClearBtn: {
+    position: "absolute",
+    right: 8,
+    background: "transparent",
+    border: "none",
+    color: "#767C89",
+    fontSize: 18,
+    cursor: "pointer",
+    padding: "4px 8px",
+    lineHeight: 1,
+  },
+  searchResultHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#767C89",
     fontFamily: "'Inter', sans-serif",
   },
   emptyState: {
