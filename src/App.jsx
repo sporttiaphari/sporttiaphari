@@ -487,7 +487,10 @@ export default function JadwalOlahraga() {
         };
         if (!g.sourceEvents.some((s) => s.id === ev.id)) g.sourceEvents.push(ev);
       }
-      if (m) byDate[bd][cardKey].matches.push(m);
+      if (m) {
+        // _sourceDate = tanggal WIB asli, dipakai untuk konversi & sort jam lokal
+        byDate[bd][cardKey].matches.push({ ...m, _sourceDate: ev.date });
+      }
     };
 
     if (ev.matches.length === 0) {

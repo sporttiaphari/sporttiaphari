@@ -4,11 +4,13 @@ import { styles } from "../styles";
 
 export default function MatchRow({ match, eventDate, eventFormat, lookupBroadcasterLogo }) {
   const m = match;
+  // _sourceDate = tanggal WIB asli (penting kalau match pindah hari karena beda zona)
+  const sourceDate = m._sourceDate || eventDate;
   return (
     <div style={styles.matchRow}>
       <div style={styles.matchTopRow}>
         <span style={m.followedBy ? styles.matchTimeFB : styles.matchTime}>
-          {m.followedBy ? "FB" : formatLocalTime(eventDate, m.time)}
+          {m.followedBy ? "FB" : formatLocalTime(sourceDate, m.time)}
         </span>
         <span style={styles.matchTeams}>
           {eventFormat === "single" ? (

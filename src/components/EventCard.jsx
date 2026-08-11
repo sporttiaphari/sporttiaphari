@@ -139,14 +139,14 @@ export default function EventCard({
       )}
 
       <div style={styles.matchList}>
-        {groupMatchesByCourt(matches).map((group, gi) => (
+        {groupMatchesByCourt(matches, ev.date).map((group, gi) => (
           <React.Fragment key={gi}>
             {group.court && <div style={styles.courtLabel}>{group.court}</div>}
             {group.matches.map((m) => (
               <MatchRow
                 key={m.id}
                 match={m}
-                eventDate={ev.date}
+                eventDate={m._sourceDate || ev.date}
                 eventFormat={ev.format}
                 lookupBroadcasterLogo={lookupBroadcasterLogo}
               />
