@@ -1,0 +1,162 @@
+import React from "react";
+import { fmtDateShort, groupMatchesByCourt } from "../utils/date";
+import { eventInitials } from "../utils/event";
+import MatchRow from "./MatchRow";
+import { styles } from "../styles";
+
+export default function EventCard({
+  ev,
+  matches,
+  sourceEvents,
+  idx,
+  arrLength,
+  isAdmin,
+  lookupBroadcasterLogo,
+  onMoveUp,
+  onMoveDown,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}) {
+  return (
+    <div style={styles.eventCard}>
+      <div style={styles.eventHeaderRow}>
+        <div style={styles.eventHeaderLeft}>
+          {ev.logo ? (
+            <img
+              src={ev.logo}
+              alt=""
+              style={styles.eventLogoImg}
+              onError={(e) => {
+                e.target.style.display = "none";
+                e.target.nextSibling.style.display = "flex";
+              }}
+            />
+          ) : null}
+          <div
+            style={{
+              ...styles.eventLogoFallback,
+              display: ev.logo ? "none" : "flex",
+            }}
+          >
+            {eventInitials(ev.name)}
+          </div>
+          <div style={styles.eventTitleCol}>
+            <div style={styles.eventName}>{ev.name}</div>
+            {ev.round && <div style={styles.eventRound}>{ev.round}</div>}
+            {ev.broadcasters && ev.broadcasters.filter(Boolean).length > 0 && (
+              <div style={styles.liveOnRow}>
+                <span style={styles.liveOnLabel}>LIVE ON</span>
+                {ev.broadcasters.filter(Boolean).map((b, i) => {
+                  const logo = lookupBroadcasterLogo(b);
+                  return (
+                    <span
+                      key={i}
+                      style={logo ? styles.liveOnChannelChip : styles.liveOnChannelChipText}
+                    >
+                      {logo ? (
+                        <>
+                          <img
+                            src={logo}
+                            alt={b}
+                            title={b}
+                            style={styles.liveOnLogo}
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                              e.target.nextSibling.style.display = "inline";
+                              e.target.parentElement.style.background = "transparent";
+                              e.target.parentElement.style.padding = "0";
+                            }}
+                          />
+                          <span style={{ ...styles.liveOnValue, display: "none" }}>{b}</span>
+                        </>
+                      ) : (
+                        <span style={styles.liveOnValue}>{b}</span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        {isAdmin && (
+          <div style={styles.eventHeaderActions}>
+            <button
+              style={idx === 0 ? styles.reorderBtnDisabled : styles.reorderBtn}
+              disabled={idx === 0}
+              onClick={onMoveUp}
+              title="Naikkan urutan"
+            >
+              ↑
+            </button>
+            <button
+              style={idx === arrLength - 1 ? styles.reorderBtnDisabled : styles.reorderBtn}
+              disabled={idx === arrLength - 1}
+              onClick={onMoveDown}
+              title="Turunkan urutan"
+            >
+              ↓
+            </button>
+            {sourceEvents.length === 1 && (
+              <>
+                <button style={styles.editBtn} onClick={() => onEdit(sourceEvents[0])}>
+                  Edit
+                </button>
+                <button style={styles.duplicateBtn} onClick={() => onDuplicate(sourceEvents[0])}>
+                  Duplikat
+                </button>
+                <button style={styles.deleteBtn} onClick={() => onDelete(sourceEvents[0].id)}>
+                  Hapus
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {isAdmin && sourceEvents.length > 1 && (
+        <div style={styles.mergedActions}>
+          <div style={styles.mergedNote}>
+            Kartu ini gabungan {sourceEvents.length} entry (beda tanggal, lewat tengah malam).
+            Pilih tanggal buat edit/hapus/duplikat bagian itu:
+          </div>
+          {sourceEvents.map((se) => (
+            <div key={se.id} style={styles.mergedActionRow}>
+              <span style={styles.mergedActionDate}>{fmtDateShort(se.date)}</span>
+              <button style={styles.editBtn} onClick={() => onEdit(se)}>
+                Edit
+              </button>
+              <button style={styles.duplicateBtn} onClick={() => onDuplicate(se)}>
+                Duplikat
+              </button>
+              <button style={styles.deleteBtn} onClick={() => onDelete(se.id)}>
+                Hapus
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={styles.matchList}>
+        {groupMatchesByCourt(matches).map((group, gi) => (
+          <React.Fragment key={gi}>
+            {group.court && <div style={styles.courtLabel}>{group.court}</div>}
+            {group.matches.map((m) => (
+              <MatchRow
+                key={m.id}
+                match={m}
+                eventDate={ev.date}
+                eventFormat={ev.format}
+                lookupBroadcasterLogo={lookupBroadcasterLogo}
+              />
+            ))}
+          </React.Fragment>
+        ))}
+        {matches.length === 0 && (
+          <div style={styles.mutedSmall}>Belum ada pertandingan</div>
+        )}
+      </div>
+    </div>
+  );
+}
