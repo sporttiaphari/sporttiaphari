@@ -260,6 +260,7 @@ export default function EventModal({
           <button style={styles.addMatchBtn} onClick={addDraftMatch}>
             + Tambah pertandingan
           </button>
+          </div>
 
           <div style={styles.modalActions}>
             <button
