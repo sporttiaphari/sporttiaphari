@@ -3,7 +3,7 @@
 -- sebagian sudah pernah dibuat sebelumnya.
 --
 -- PENTING: Ganti 'sporttiaphari@outlook.com' di bawah ini kalau email admin lo beda.
--- Email ini HARUS sama dengan ADMIN_EMAIL di src/App.jsx.
+-- Email ini HARUS sama dengan VITE_ADMIN_EMAIL di .env / Vercel Environment Variables.
 
 -- ============================================================
 -- 1. Tabel kv_store (events, broadcasterLogos, eventLogos)
