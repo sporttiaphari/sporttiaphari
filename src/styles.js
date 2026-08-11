@@ -7,7 +7,14 @@ const fontImports = `
   max-width: 640px;
 }
 .jo-modal {
-  max-width: 420px;
+  max-width: 100%;
+}
+@media (min-width: 600px) {
+  .jo-modal {
+    max-width: 520px;
+    border-radius: 12px !important;
+    margin: 24px;
+  }
 }
 @media (min-width: 900px) {
   .jo-content { max-width: 820px; }
@@ -20,6 +27,7 @@ const fontImports = `
 .jo-form-row {
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 .jo-form-row > input {
   flex: 1;
@@ -29,6 +37,13 @@ const fontImports = `
   .jo-form-row {
     flex-direction: row;
     gap: 10px;
+  }
+}
+/* Center modal on larger screens */
+@media (min-width: 600px) {
+  .jo-overlay-center {
+    align-items: center !important;
+    padding: 16px !important;
   }
 }
 `;
@@ -529,31 +544,50 @@ const styles = {
   overlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,0.6)",
+    background: "rgba(0,0,0,0.7)",
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "center",
-    padding: 16,
+    padding: 0,
     zIndex: 50,
   },
   modal: {
     background: "#1D2027",
     border: "1px solid #2C303A",
-    borderRadius: 4,
-    padding: 20,
+    borderRadius: "16px 16px 0 0",
+    padding: "16px 16px 12px",
     width: "100%",
-    maxHeight: "85vh",
+    maxHeight: "92vh",
     overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    display: "flex",
+    flexDirection: "column",
   },
-  modalTitle: { fontFamily: "'Teko', sans-serif", fontSize: 24, fontWeight: 600, marginBottom: 12 },
+  modalTitle: {
+    fontFamily: "'Teko', sans-serif",
+    fontSize: 24,
+    fontWeight: 600,
+    marginBottom: 4,
+    flexShrink: 0,
+  },
+  modalBody: {
+    flex: 1,
+    overflowY: "auto",
+    WebkitOverflowScrolling: "touch",
+    paddingBottom: 8,
+  },
+  modalSection: {
+    marginTop: 14,
+    marginBottom: 4,
+  },
   input: {
     width: "100%",
     background: "#14161A",
     border: "1px solid #2C303A",
-    borderRadius: 3,
-    padding: "11px 12px",
+    borderRadius: 8,
+    padding: "14px 14px",
     color: "#EDEFF3",
-    fontSize: 14,
+    fontSize: 16, // prevents iOS zoom on focus
     fontFamily: "'Inter', sans-serif",
     marginBottom: 10,
     boxSizing: "border-box",
@@ -673,38 +707,50 @@ const styles = {
     background: "none",
     border: "1px dashed #2C303A",
     color: "#3DDC97",
-    borderRadius: 3,
-    padding: "8px 10px",
-    fontSize: 12,
+    borderRadius: 8,
+    padding: "12px 12px",
+    fontSize: 14,
     cursor: "pointer",
     width: "100%",
     marginBottom: 14,
     fontFamily: "'Inter', sans-serif",
+    minHeight: 44,
   },
-  modalActions: { display: "flex", gap: 8 },
+  modalActions: {
+    display: "flex",
+    gap: 10,
+    paddingTop: 12,
+    paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+    borderTop: "1px solid #2C303A",
+    marginTop: 8,
+    flexShrink: 0,
+    background: "#1D2027",
+  },
   authErrorText: { color: "#FF6B6B", fontSize: 12, marginTop: -6, marginBottom: 10 },
   secondaryBtn: {
     flex: 1,
     background: "transparent",
     color: "#EDEFF3",
     border: "1px solid #2C303A",
-    borderRadius: 3,
-    padding: "11px 16px",
-    fontSize: 14,
+    borderRadius: 10,
+    padding: "14px 16px",
+    fontSize: 15,
     cursor: "pointer",
     fontFamily: "'Inter', sans-serif",
+    minHeight: 48,
   },
   primaryBtn: {
     flex: 1,
     background: "#3DDC97",
     color: "#14161A",
     border: "none",
-    borderRadius: 3,
-    padding: "11px 16px",
-    fontSize: 14,
+    borderRadius: 10,
+    padding: "14px 16px",
+    fontSize: 15,
     fontWeight: 600,
     cursor: "pointer",
     fontFamily: "'Inter', sans-serif",
+    minHeight: 48,
   },
   fabWrap: {
     position: "fixed",

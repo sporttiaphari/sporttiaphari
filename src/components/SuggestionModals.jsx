@@ -13,7 +13,7 @@ export function SuggestModal({
 }) {
   if (!open) return null;
   return (
-    <div style={styles.overlay} onClick={onClose}>
+    <div className="jo-overlay-center" style={styles.overlay} onClick={onClose}>
       <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalTitle}>Kasih Saran</div>
         <p style={styles.mutedSmall}>
@@ -58,7 +58,7 @@ export function SuggestModal({
 export function InboxModal({ open, suggestions, onClose, onDelete }) {
   if (!open) return null;
   return (
-    <div style={styles.overlay} onClick={onClose}>
+    <div className="jo-overlay-center" style={styles.overlay} onClick={onClose}>
       <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalTitle}>Saran Masuk</div>
         {suggestions.length === 0 && (

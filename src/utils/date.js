@@ -27,6 +27,11 @@ export function formatLocalTime(dateStr, timeStr) {
   });
 }
 
+/**
+ * Tanggal kalender LOKAL pengunjung untuk sebuah match.
+ * Pakai batas normal 00:00–23:59 (bukan 06:00–05:59).
+ * Match tanpa jam tetap pakai tanggal aslinya.
+ */
 export function getLocalBroadcastDate(dateStr, timeStr) {
   if (!timeStr) return dateStr;
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -34,24 +39,18 @@ export function getLocalBroadcastDate(dateStr, timeStr) {
   if ([y, m, d, hh, mm].some((n) => Number.isNaN(n))) return dateStr;
   const utcMs = Date.UTC(y, m - 1, d, hh, mm) - 7 * 60 * 60 * 1000; // WIB -> UTC
   const local = new Date(utcMs);
-  let ly = local.getFullYear();
-  let lm = local.getMonth();
-  let ld = local.getDate();
-  if (local.getHours() < 6) {
-    const prev = new Date(ly, lm, ld - 1);
-    ly = prev.getFullYear();
-    lm = prev.getMonth();
-    ld = prev.getDate();
-  }
+  const ly = local.getFullYear();
+  const lm = local.getMonth();
+  const ld = local.getDate();
   return `${ly}-${String(lm + 1).padStart(2, "0")}-${String(ld).padStart(2, "0")}`;
 }
 
+/** Urutan jam biasa 00:00–23:59 (menit sejak tengah malam). */
 export function broadcastSortKey(timeStr) {
   if (!timeStr) return null;
   const [h, m] = timeStr.split(":").map(Number);
   if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  const totalMin = h * 60 + m;
-  return h < 6 ? totalMin + 24 * 60 : totalMin;
+  return h * 60 + m;
 }
 
 export function sortMatchesForDisplay(matches) {

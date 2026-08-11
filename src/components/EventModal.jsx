@@ -20,9 +20,10 @@ export default function EventModal({
   if (!open) return null;
 
   return (
-      <div style={styles.overlay} onClick={() => onClose()}>
+      <div className="jo-overlay-center" style={styles.overlay} onClick={() => onClose()}>
         <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
           <div style={styles.modalTitle}>{editingEventId ? "Edit Event" : "Event Baru"}</div>
+          <div style={styles.modalBody}>
           <div className="jo-form-row">
             <input
               style={styles.input}

@@ -15,6 +15,7 @@ export default function AuthModal({
 
   return (
     <div
+      className="jo-overlay-center"
       style={styles.overlay}
       onClick={() => {
         onClose();

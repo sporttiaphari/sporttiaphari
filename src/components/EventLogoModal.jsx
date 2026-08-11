@@ -19,7 +19,7 @@ export default function EventLogoModal({
   if (!open) return null;
 
   return (
-<div style={styles.overlay} onClick={() => onClose()}>
+<div className="jo-overlay-center" style={styles.overlay} onClick={() => onClose()}>
         <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
           <div style={styles.modalTitle}>Logo Event</div>
           <p style={styles.mutedSmall}>

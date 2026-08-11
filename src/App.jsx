@@ -462,22 +462,20 @@ export default function JadwalOlahraga() {
         })
         .filter(Boolean);
 
-  // group by "hari siaran" (06:00-05:59), bukan per event secara utuh —
-  // matches dalam satu event bisa kepisah ke 2 hari siaran kalau ada yang
-  // sebelum & sesudah jam 6 pagi. Di-key pakai NAMA event (bukan id),
-  // biar event yang kepaksa dipecah jadi 2 entry gara-gara beda tanggal
-  // (mis. pertandingan lewat tengah malam) otomatis gabung lagi jadi satu
-  // kartu kalau nama-nya sama dan jatuh di bucket hari yang sama.
+  // Group by tanggal kalender lokal (00:00–23:59).
+  // Key kartu = nama event + round/sub-event, biar round berbeda jadi kartu terpisah
+  // (mis. "WTT EUROPE SMASH / Sweden - Day 1" vs "Day 2").
+  // Entry yang sama (nama+round) di tanggal yang sama digabung; beda round tetap terpisah.
   const byDate = {};
   filteredEvents.forEach((ev) => {
-    const nameKey = ev.name.trim().toLowerCase();
+    const cardKey = `${(ev.name || "").trim().toLowerCase()}||${(ev.round || "").trim().toLowerCase()}`;
     const addToBucket = (bd, m) => {
       if (!byDate[bd]) byDate[bd] = {};
-      if (!byDate[bd][nameKey]) {
-        byDate[bd][nameKey] = { event: ev, matches: [], sourceEvents: [ev] };
+      if (!byDate[bd][cardKey]) {
+        byDate[bd][cardKey] = { event: ev, matches: [], sourceEvents: [ev] };
       } else {
-        const g = byDate[bd][nameKey];
-        // lengkapin metadata yang kosong dari entry sebelumnya (logo/round/broadcasters)
+        const g = byDate[bd][cardKey];
+        // lengkapi metadata yang kosong dari entry sebelumnya
         g.event = {
           ...g.event,
           logo: g.event.logo || ev.logo,
@@ -489,7 +487,7 @@ export default function JadwalOlahraga() {
         };
         if (!g.sourceEvents.some((s) => s.id === ev.id)) g.sourceEvents.push(ev);
       }
-      if (m) byDate[bd][nameKey].matches.push(m);
+      if (m) byDate[bd][cardKey].matches.push(m);
     };
 
     if (ev.matches.length === 0) {
@@ -502,9 +500,7 @@ export default function JadwalOlahraga() {
   });
   const sortedDates = Object.keys(byDate).sort();
 
-  // urutin grup dalam satu hari siaran berdasarkan field `order` (nilai
-  // terkecil di antara sourceEvents-nya), bukan urutan insersi yang nggak
-  // bisa diatur manual
+  // Urutin grup dalam satu tanggal berdasarkan field `order`
   const getSortedGroupsForDate = (date) =>
     Object.values(byDate[date]).sort((a, b) => {
       const orderA = Math.min(...a.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
@@ -512,9 +508,7 @@ export default function JadwalOlahraga() {
       return orderA - orderB;
     });
 
-  // geser urutan tampil satu "kartu" (bisa gabungan beberapa sourceEvents)
-  // relatif ke tetangganya di hari siaran yang sama, dengan cara nukar
-  // nilai `order` di antara dua grup itu
+  // Geser urutan tampil satu kartu relatif ke tetangganya di tanggal yang sama
   const moveEventInDate = async (date, groupEventId, direction) => {
     if (!isAdmin) return;
     const groups = getSortedGroupsForDate(date);
@@ -584,7 +578,7 @@ export default function JadwalOlahraga() {
       {sortedDates.map((date) => (
         <section key={date} className="jo-content" style={styles.dateBlock}>
           <div style={{ ...styles.dateLabel, top: headerHeight }}>
-            {fmtDateLabel(date)} <span style={styles.dateLabelRange}>06:00–05:59 waktu lokal kamu</span>
+            {fmtDateLabel(date)} <span style={styles.dateLabelRange}>waktu lokal kamu</span>
           </div>
           {getSortedGroupsForDate(date).map(({ event: ev, matches, sourceEvents }, idx, arr) => (
             <EventCard
