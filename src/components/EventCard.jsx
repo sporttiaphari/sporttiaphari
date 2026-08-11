@@ -87,6 +87,7 @@ export default function EventCard({
               disabled={idx === 0}
               onClick={onMoveUp}
               title="Naikkan urutan"
+              aria-label="Naikkan urutan"
             >
               ↑
             </button>
@@ -95,19 +96,30 @@ export default function EventCard({
               disabled={idx === arrLength - 1}
               onClick={onMoveDown}
               title="Turunkan urutan"
+              aria-label="Turunkan urutan"
             >
               ↓
             </button>
             {sourceEvents.length === 1 && (
               <>
-                <button style={styles.editBtn} onClick={() => onEdit(sourceEvents[0])}>
-                  Edit
+                <button style={styles.editBtn} onClick={() => onEdit(sourceEvents[0])} title="Edit" aria-label="Edit">
+                  ✎
                 </button>
-                <button style={styles.duplicateBtn} onClick={() => onDuplicate(sourceEvents[0])}>
-                  Duplikat
+                <button
+                  style={styles.duplicateBtn}
+                  onClick={() => onDuplicate(sourceEvents[0])}
+                  title="Duplikat"
+                  aria-label="Duplikat"
+                >
+                  ⧉
                 </button>
-                <button style={styles.deleteBtn} onClick={() => onDelete(sourceEvents[0].id)}>
-                  Hapus
+                <button
+                  style={styles.deleteBtn}
+                  onClick={() => onDelete(sourceEvents[0].id)}
+                  title="Hapus"
+                  aria-label="Hapus"
+                >
+                  ✕
                 </button>
               </>
             )}
@@ -124,14 +136,24 @@ export default function EventCard({
           {sourceEvents.map((se) => (
             <div key={se.id} style={styles.mergedActionRow}>
               <span style={styles.mergedActionDate}>{fmtDateShort(se.date)}</span>
-              <button style={styles.editBtn} onClick={() => onEdit(se)}>
-                Edit
+              <button style={styles.editBtn} onClick={() => onEdit(se)} title="Edit" aria-label="Edit">
+                ✎ Edit
               </button>
-              <button style={styles.duplicateBtn} onClick={() => onDuplicate(se)}>
-                Duplikat
+              <button
+                style={styles.duplicateBtn}
+                onClick={() => onDuplicate(se)}
+                title="Duplikat"
+                aria-label="Duplikat"
+              >
+                ⧉ Dup
               </button>
-              <button style={styles.deleteBtn} onClick={() => onDelete(se.id)}>
-                Hapus
+              <button
+                style={styles.deleteBtn}
+                onClick={() => onDelete(se.id)}
+                title="Hapus"
+                aria-label="Hapus"
+              >
+                ✕
               </button>
             </div>
           ))}

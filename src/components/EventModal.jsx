@@ -148,14 +148,14 @@ export default function EventModal({
               style={draft.format === "versus" ? styles.formatBtnActive : styles.formatBtn}
               onClick={() => setDraft({ ...draft, format: "versus" })}
             >
-              Tim A vs Tim B
+              A vs B
             </button>
             <button
               type="button"
               style={draft.format === "single" ? styles.formatBtnActive : styles.formatBtn}
               onClick={() => setDraft({ ...draft, format: "single" })}
             >
-              Satu entri (mis. balapan)
+              Satu entri
             </button>
           </div>
 
