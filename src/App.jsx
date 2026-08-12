@@ -512,29 +512,30 @@ export default function JadwalOlahraga() {
   const sortedDates = Object.keys(byDate).sort();
 
   // Hybrid order dalam satu tanggal:
-  // 1) pinned dulu  2) jam match paling awal (lokal)  3) order manual
+  // 1) pinned dulu
+  // 2) order manual (↑/↓) — harus di atas waktu biar tombol reorder berfungsi
+  // 3) jam match paling awal (lokal) sebagai tiebreaker
+  const earliestMatchKey = (g) => {
+    let min = Infinity;
+    for (const m of g.matches || []) {
+      if (!m.time) continue;
+      const key = localSortKey(m._sourceDate || g.event.date, m.time);
+      if (key !== null && key < min) min = key;
+    }
+    return min === Infinity ? 99999 : min;
+  };
+
   const getSortedGroupsForDate = (date) =>
     Object.values(byDate[date]).sort((a, b) => {
       const pinnedA = a.sourceEvents.some((s) => s.pinned) ? 0 : 1;
       const pinnedB = b.sourceEvents.some((s) => s.pinned) ? 0 : 1;
       if (pinnedA !== pinnedB) return pinnedA - pinnedB;
 
-      const earliest = (g) => {
-        let min = Infinity;
-        for (const m of g.matches || []) {
-          if (!m.time) continue;
-          const key = localSortKey(m._sourceDate || g.event.date, m.time);
-          if (key !== null && key < min) min = key;
-        }
-        return min === Infinity ? 99999 : min;
-      };
-      const timeA = earliest(a);
-      const timeB = earliest(b);
-      if (timeA !== timeB) return timeA - timeB;
-
       const orderA = Math.min(...a.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
       const orderB = Math.min(...b.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
-      return orderA - orderB;
+      if (orderA !== orderB) return orderA - orderB;
+
+      return earliestMatchKey(a) - earliestMatchKey(b);
     });
 
   // Geser urutan tampil satu kartu relatif ke tetangganya di tanggal yang sama
@@ -555,18 +556,37 @@ export default function JadwalOlahraga() {
   const moveEventInDate = async (date, groupEventId, direction) => {
     if (!isAdmin) return;
     const groups = getSortedGroupsForDate(date);
-    const idx = groups.findIndex((g) => g.event.id === groupEventId);
+    // cari group pakai sourceEvents id, bukan cuma event.id representatif
+    const idx = groups.findIndex(
+      (g) => g.event.id === groupEventId || g.sourceEvents.some((s) => s.id === groupEventId)
+    );
     if (idx === -1) return;
     const neighborIdx = direction === "up" ? idx - 1 : idx + 1;
     if (neighborIdx < 0 || neighborIdx >= groups.length) return;
     const currentGroup = groups[idx];
     const neighborGroup = groups[neighborIdx];
-    const currentMin = Math.min(
+
+    // Jangan lewati batas pin ↔ non-pin (pakai tombol 📌 untuk itu)
+    const curPinned = currentGroup.sourceEvents.some((s) => s.pinned);
+    const neiPinned = neighborGroup.sourceEvents.some((s) => s.pinned);
+    if (curPinned !== neiPinned) {
+      setToast(curPinned ? "Lepas pin dulu untuk geser ke bawah" : "Pin event di atas, atau pin event ini");
+      setTimeout(() => setToast(""), 2500);
+      return;
+    }
+
+    let currentMin = Math.min(
       ...currentGroup.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0))
     );
-    const neighborMin = Math.min(
+    let neighborMin = Math.min(
       ...neighborGroup.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0))
     );
+    // kalau order sama, paksa bedakan biar swap terlihat
+    if (currentMin === neighborMin) {
+      if (direction === "up") currentMin = neighborMin - 1;
+      else currentMin = neighborMin + 1;
+    }
+
     const next = events.map((e) => {
       if (currentGroup.sourceEvents.some((s) => s.id === e.id)) return { ...e, order: neighborMin };
       if (neighborGroup.sourceEvents.some((s) => s.id === e.id)) return { ...e, order: currentMin };
