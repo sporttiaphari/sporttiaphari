@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { uploadLogo } from "../db";
 import { styles } from "../styles";
 
@@ -16,16 +16,25 @@ export default function ChannelLogoModal({
   onRemove,
   onClose,
 }) {
+  const [filter, setFilter] = useState("");
+
+  const filteredLogos = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    const entries = Object.entries(customLogos || {});
+    if (!q) return entries;
+    return entries.filter(([name]) => name.toLowerCase().includes(q));
+  }, [customLogos, filter]);
+
   if (!open) return null;
 
   return (
-<div className="jo-overlay-center" style={styles.overlay} onClick={() => onClose()}>
-        <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
-          <div style={styles.modalTitle}>Logo Channel</div>
+    <div className="jo-overlay-center" style={styles.overlay} onClick={() => onClose()}>
+      <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalTitle}>Logo Channel</div>
+        <div style={styles.modalBody}>
           <p style={styles.mutedSmall}>
-            Atur logo buat nama channel/platform tertentu. Begitu disimpan, logo ini otomatis
-            dipakai di semua "LIVE ON" (event maupun jadwal) yang namanya cocok — nggak
-            case-sensitive.
+            Atur logo buat nama channel/platform. Begitu disimpan, logo dipakai otomatis di semua
+            "LIVE ON" yang namanya cocok.
           </p>
           <input
             style={styles.input}
@@ -83,18 +92,35 @@ export default function ChannelLogoModal({
               ...styles.primaryBtn,
               opacity: saving ? 0.7 : 1,
               cursor: saving ? "not-allowed" : "pointer",
+              width: "100%",
+              marginBottom: 12,
             }}
-            onClick={onSave}
             disabled={saving}
+            onClick={onSave}
           >
             {saving ? "Menyimpan..." : "Simpan Logo"}
           </button>
 
-          <div style={styles.matchEditorLabel}>Logo Tersimpan</div>
-          {Object.keys(customLogos).length === 0 && (
-            <div style={styles.mutedSmall}>Belum ada logo custom.</div>
+          <div style={styles.matchEditorLabel}>
+            Logo Tersimpan ({Object.keys(customLogos || {}).length})
+          </div>
+          {Object.keys(customLogos || {}).length > 0 && (
+            <input
+              style={styles.input}
+              type="search"
+              placeholder="Cari logo channel..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              autoComplete="off"
+            />
           )}
-          {Object.entries(customLogos).map(([name, url]) => (
+          {Object.keys(customLogos || {}).length === 0 && (
+            <div style={styles.mutedSmall}>Belum ada logo channel tersimpan.</div>
+          )}
+          {Object.keys(customLogos || {}).length > 0 && filteredLogos.length === 0 && (
+            <div style={styles.mutedSmall}>Tidak ada logo cocok dengan “{filter.trim()}”.</div>
+          )}
+          {filteredLogos.map(([name, url]) => (
             <div key={name} style={styles.logoListRow}>
               <img
                 src={url}
@@ -103,18 +129,19 @@ export default function ChannelLogoModal({
                 onError={(e) => (e.target.style.display = "none")}
               />
               <span style={styles.logoListName}>{name}</span>
-              <button style={styles.rowRemoveBtn} onClick={() => onRemove(name)}>
+              <button style={styles.rowRemoveBtn} onClick={() => onRemove(name)} title="Hapus">
                 ×
               </button>
             </div>
           ))}
+        </div>
 
-          <div style={styles.modalActions}>
-            <button style={styles.secondaryBtn} onClick={() => onClose()}>
-              Tutup
-            </button>
-          </div>
+        <div style={styles.modalActions}>
+          <button style={styles.secondaryBtn} onClick={() => onClose()}>
+            Tutup
+          </button>
         </div>
       </div>
+    </div>
   );
 }

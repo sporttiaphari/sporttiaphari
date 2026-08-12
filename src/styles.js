@@ -10,20 +10,41 @@ const fontImports = `
   max-width: 100%;
   width: 100%;
 }
-@media (min-width: 480px) {
+/* Tablet: medium form */
+@media (min-width: 600px) {
   .jo-modal {
-    max-width: 400px !important;
-    border-radius: 14px !important;
-    margin: 20px auto;
+    max-width: 560px !important;
+    border-radius: 12px !important;
+    margin: 24px auto;
+  }
+  .jo-overlay-center {
+    align-items: center !important;
+    padding: 16px !important;
   }
 }
+/* Desktop: wide efficient form (up to 720px) */
 @media (min-width: 900px) {
   .jo-content { max-width: 820px; }
+  .jo-modal {
+    max-width: 720px !important;
+  }
+  .jo-modal input,
+  .jo-modal textarea,
+  .jo-modal .jo-input {
+    font-size: 13px !important;
+    padding: 9px 11px !important;
+    min-height: 0 !important;
+  }
+  .jo-modal button {
+    min-height: 40px !important;
+    font-size: 13px !important;
+    padding: 9px 12px !important;
+  }
 }
 @media (min-width: 1280px) {
   .jo-content { max-width: 980px; }
 }
-/* Always stack name/round fields */
+/* Stack on mobile; side-by-side name/round on wider screens */
 .jo-form-row {
   display: flex;
   flex-direction: column;
@@ -34,10 +55,10 @@ const fontImports = `
   min-width: 0;
   width: 100%;
 }
-@media (min-width: 480px) {
-  .jo-overlay-center {
-    align-items: center !important;
-    padding: 16px !important;
+@media (min-width: 700px) {
+  .jo-form-row {
+    flex-direction: row;
+    gap: 10px;
   }
 }
 `;
@@ -626,7 +647,6 @@ const styles = {
     borderRadius: "16px 16px 0 0",
     padding: "16px 16px 12px",
     width: "100%",
-    maxWidth: 400,
     maxHeight: "90dvh",
     overflow: "hidden",
     WebkitOverflowScrolling: "touch",
