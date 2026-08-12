@@ -8,22 +8,22 @@ const fontImports = `
 }
 .jo-modal {
   max-width: 100%;
+  width: 100%;
 }
-@media (min-width: 600px) {
+@media (min-width: 480px) {
   .jo-modal {
-    max-width: 520px;
-    border-radius: 12px !important;
-    margin: 24px;
+    max-width: 400px !important;
+    border-radius: 14px !important;
+    margin: 20px auto;
   }
 }
 @media (min-width: 900px) {
   .jo-content { max-width: 820px; }
-  .jo-modal { max-width: 640px; }
 }
 @media (min-width: 1280px) {
   .jo-content { max-width: 980px; }
-  .jo-modal { max-width: 720px; }
 }
+/* Always stack name/round fields */
 .jo-form-row {
   display: flex;
   flex-direction: column;
@@ -32,15 +32,9 @@ const fontImports = `
 .jo-form-row > input {
   flex: 1;
   min-width: 0;
+  width: 100%;
 }
-@media (min-width: 700px) {
-  .jo-form-row {
-    flex-direction: row;
-    gap: 10px;
-  }
-}
-/* Center modal on larger screens */
-@media (min-width: 600px) {
+@media (min-width: 480px) {
   .jo-overlay-center {
     align-items: center !important;
     padding: 16px !important;
@@ -328,11 +322,11 @@ const styles = {
     display: "block",
     width: "100%",
     background: "#14161A",
-    border: "1px dashed #2C303A",
-    borderRadius: 3,
+    border: "1px dashed #3A3F49",
+    borderRadius: 10,
     color: "#3DDC97",
-    padding: "12px 14px",
-    fontSize: 13,
+    padding: "14px 14px",
+    fontSize: 14,
     fontWeight: 500,
     cursor: "pointer",
     fontFamily: "'Inter', sans-serif",
@@ -630,51 +624,56 @@ const styles = {
     background: "#1D2027",
     border: "1px solid #2C303A",
     borderRadius: "16px 16px 0 0",
-    padding: "14px 14px 10px",
+    padding: "16px 16px 12px",
     width: "100%",
+    maxWidth: 400,
     maxHeight: "90dvh",
     overflow: "hidden",
     WebkitOverflowScrolling: "touch",
     display: "flex",
     flexDirection: "column",
     boxSizing: "border-box",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
   },
   modalTitle: {
     fontFamily: "'Teko', sans-serif",
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 600,
-    marginBottom: 4,
+    marginBottom: 10,
     flexShrink: 0,
+    letterSpacing: "0.02em",
   },
   modalBody: {
     flex: 1,
     overflowY: "auto",
     WebkitOverflowScrolling: "touch",
-    paddingBottom: 8,
+    paddingBottom: 4,
+    paddingRight: 2,
   },
   modalSection: {
-    marginTop: 14,
+    marginTop: 12,
     marginBottom: 4,
   },
   input: {
     width: "100%",
     background: "#14161A",
     border: "1px solid #2C303A",
-    borderRadius: 8,
-    padding: "14px 14px",
+    borderRadius: 10,
+    padding: "12px 14px",
     color: "#EDEFF3",
-    fontSize: 16, // prevents iOS zoom on focus
+    fontSize: 15,
     fontFamily: "'Inter', sans-serif",
     marginBottom: 10,
     boxSizing: "border-box",
     outline: "none",
+    transition: "border-color 0.15s ease",
   },
   matchEditorLabel: {
     fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: 11,
+    fontSize: 10,
     color: "#767C89",
     letterSpacing: "0.08em",
-    margin: "6px 0 8px",
+    margin: "12px 0 8px",
     textTransform: "uppercase",
   },
   formatToggleRow: { display: "flex", gap: 8, marginBottom: 14 },
