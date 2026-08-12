@@ -20,6 +20,7 @@ export const emptyEvent = () => ({
   format: "versus", // "versus" (Tim A vs Tim B) or "single"
   date: todayLocalDate(),
   order: Date.now(),
+  pinned: false, // pin ke atas (prioritas hybrid)
   matches: [emptyMatch()],
 });
 
@@ -36,7 +37,8 @@ export function normalizeEvent(ev, fallbackOrder) {
     liveOns: m.liveOns && m.liveOns.length ? m.liveOns : m.liveOn ? [m.liveOn] : [""],
   }));
   const order = typeof ev.order === "number" ? ev.order : fallbackOrder || 0;
-  return { ...ev, broadcasters, matches, order };
+  const pinned = !!ev.pinned;
+  return { ...ev, broadcasters, matches, order, pinned };
 }
 
 export function eventInitials(name) {

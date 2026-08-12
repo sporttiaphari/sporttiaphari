@@ -14,12 +14,17 @@ export default function EventCard({
   lookupBroadcasterLogo,
   onMoveUp,
   onMoveDown,
+  onTogglePin,
   onEdit,
   onDuplicate,
   onDelete,
 }) {
+  const isPinned = sourceEvents.some((s) => s.pinned);
   return (
-    <div style={styles.eventCard}>
+    <div style={{
+      ...styles.eventCard,
+      ...(isPinned ? { borderColor: "#F2C14E", boxShadow: "0 0 0 1px rgba(242,193,78,0.25)" } : {}),
+    }}>
       <div style={styles.eventHeaderRow}>
         <div style={styles.eventHeaderLeft}>
           {ev.logo ? (
@@ -42,7 +47,10 @@ export default function EventCard({
             {eventInitials(ev.name)}
           </div>
           <div style={styles.eventTitleCol}>
-            <div style={styles.eventName}>{ev.name}</div>
+            <div style={styles.eventName}>
+              {isPinned && <span style={styles.pinBadge} title="Dipin">📌 </span>}
+              {ev.name}
+            </div>
             {ev.round && <div style={styles.eventRound}>{ev.round}</div>}
             {ev.broadcasters && ev.broadcasters.filter(Boolean).length > 0 && (
               <div style={styles.liveOnRow}>
@@ -99,6 +107,14 @@ export default function EventCard({
               aria-label="Turunkan urutan"
             >
               ↓
+            </button>
+            <button
+              style={isPinned ? styles.pinBtnActive : styles.pinBtn}
+              onClick={onTogglePin}
+              title={isPinned ? "Lepas pin" : "Pin ke atas"}
+              aria-label={isPinned ? "Lepas pin" : "Pin ke atas"}
+            >
+              📌
             </button>
             {sourceEvents.length === 1 && (
               <>

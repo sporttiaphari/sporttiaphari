@@ -6,6 +6,7 @@ import {
   fmtDateShort,
   formatLocalTime,
   getLocalBroadcastDate,
+  localSortKey,
   sortMatchesForDisplay,
   groupMatchesByCourt,
   todayLocalDate,
@@ -360,6 +361,7 @@ export default function JadwalOlahraga() {
       id: crypto.randomUUID(),
       date: tomorrow,
       order: Date.now(),
+      pinned: false,
       matches: normalized.matches.map((m) => ({
         ...m,
         id: crypto.randomUUID(),
@@ -509,15 +511,47 @@ export default function JadwalOlahraga() {
   });
   const sortedDates = Object.keys(byDate).sort();
 
-  // Urutin grup dalam satu tanggal berdasarkan field `order`
+  // Hybrid order dalam satu tanggal:
+  // 1) pinned dulu  2) jam match paling awal (lokal)  3) order manual
   const getSortedGroupsForDate = (date) =>
     Object.values(byDate[date]).sort((a, b) => {
+      const pinnedA = a.sourceEvents.some((s) => s.pinned) ? 0 : 1;
+      const pinnedB = b.sourceEvents.some((s) => s.pinned) ? 0 : 1;
+      if (pinnedA !== pinnedB) return pinnedA - pinnedB;
+
+      const earliest = (g) => {
+        let min = Infinity;
+        for (const m of g.matches || []) {
+          if (!m.time) continue;
+          const key = localSortKey(m._sourceDate || g.event.date, m.time);
+          if (key !== null && key < min) min = key;
+        }
+        return min === Infinity ? 99999 : min;
+      };
+      const timeA = earliest(a);
+      const timeB = earliest(b);
+      if (timeA !== timeB) return timeA - timeB;
+
       const orderA = Math.min(...a.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
       const orderB = Math.min(...b.sourceEvents.map((s) => (typeof s.order === "number" ? s.order : 0)));
       return orderA - orderB;
     });
 
   // Geser urutan tampil satu kartu relatif ke tetangganya di tanggal yang sama
+  const togglePinEvent = async (eventId) => {
+    if (!isAdmin) return;
+    const next = events.map((e) =>
+      e.id === eventId ? { ...e, pinned: !e.pinned } : e
+    );
+    setEvents(next);
+    try {
+      await setKV("events", next);
+    } catch (err) {
+      setToast(err.message || "Gagal simpan pin");
+      setTimeout(() => setToast(""), 3000);
+    }
+  };
+
   const moveEventInDate = async (date, groupEventId, direction) => {
     if (!isAdmin) return;
     const groups = getSortedGroupsForDate(date);
@@ -601,6 +635,7 @@ export default function JadwalOlahraga() {
               lookupBroadcasterLogo={lookupBroadcasterLogo}
               onMoveUp={() => moveEventInDate(date, ev.id, "up")}
               onMoveDown={() => moveEventInDate(date, ev.id, "down")}
+              onTogglePin={() => togglePinEvent(sourceEvents[0].id)}
               onEdit={openEditEvent}
               onDuplicate={duplicateEvent}
               onDelete={deleteEvent}
