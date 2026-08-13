@@ -106,9 +106,9 @@ export default function EventModal({
             Live On (bisa lebih dari satu channel, mis. tayang serentak)
           </div>
           {draft.broadcasters.map((b, idx) => (
-            <div key={idx} style={styles.matchEditRow}>
+            <div key={idx} style={styles.channelRow}>
               <input
-                style={styles.teamInput}
+                style={styles.channelInput}
                 placeholder={idx === 0 ? "Live on (mis. RCTI, Vidio, ESPN)" : "Channel tambahan"}
                 value={b}
                 onChange={(e) => {
@@ -220,9 +220,9 @@ export default function EventModal({
               />
               <div style={styles.matchEditorLabel}>Live On pertandingan ini</div>
               {m.liveOns.map((lv, lvIdx) => (
-                <div key={lvIdx} style={styles.matchEditRow}>
+                <div key={lvIdx} style={styles.channelRow}>
                   <input
-                    style={styles.liveOnInput}
+                    style={styles.channelInput}
                     placeholder={lvIdx === 0 ? "mis. Vidio" : "Channel tambahan"}
                     value={lv}
                     onChange={(e) => {
