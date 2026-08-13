@@ -47,10 +47,7 @@ export default function EventCard({
             {eventInitials(ev.name)}
           </div>
           <div style={styles.eventTitleCol}>
-            <div style={styles.eventName}>
-              {isPinned && <span style={styles.pinBadge} title="Dipin">📌 </span>}
-              {ev.name}
-            </div>
+            <div style={styles.eventName}>{ev.name}</div>
             {ev.round && <div style={styles.eventRound}>{ev.round}</div>}
             {ev.broadcasters && ev.broadcasters.filter(Boolean).length > 0 && (
               <div style={styles.liveOnRow}>
@@ -88,59 +85,65 @@ export default function EventCard({
             )}
           </div>
         </div>
-        {isAdmin && (
-          <div style={styles.eventHeaderActions}>
-            <button
-              style={idx === 0 ? styles.reorderBtnDisabled : styles.reorderBtn}
-              disabled={idx === 0}
-              onClick={onMoveUp}
-              title="Naikkan urutan"
-              aria-label="Naikkan urutan"
-            >
-              ↑
-            </button>
-            <button
-              style={idx === arrLength - 1 ? styles.reorderBtnDisabled : styles.reorderBtn}
-              disabled={idx === arrLength - 1}
-              onClick={onMoveDown}
-              title="Turunkan urutan"
-              aria-label="Turunkan urutan"
-            >
-              ↓
-            </button>
-            <button
-              style={isPinned ? styles.pinBtnActive : styles.pinBtn}
-              onClick={onTogglePin}
-              title={isPinned ? "Lepas pin" : "Pin ke atas"}
-              aria-label={isPinned ? "Lepas pin" : "Pin ke atas"}
-            >
-              📌
-            </button>
-            {sourceEvents.length === 1 && (
-              <>
-                <button style={styles.editBtn} onClick={() => onEdit(sourceEvents[0])} title="Edit" aria-label="Edit">
-                  ✎
-                </button>
-                <button
-                  style={styles.duplicateBtn}
-                  onClick={() => onDuplicate(sourceEvents[0])}
-                  title="Duplikat"
-                  aria-label="Duplikat"
-                >
-                  ⧉
-                </button>
-                <button
-                  style={styles.deleteBtn}
-                  onClick={() => onDelete(sourceEvents[0].id)}
-                  title="Hapus"
-                  aria-label="Hapus"
-                >
-                  ✕
-                </button>
-              </>
-            )}
-          </div>
-        )}
+        <div style={styles.eventHeaderActions}>
+          {isAdmin && (
+            <>
+              <button
+                style={idx === 0 ? styles.reorderBtnDisabled : styles.reorderBtn}
+                disabled={idx === 0}
+                onClick={onMoveUp}
+                title="Naikkan urutan"
+                aria-label="Naikkan urutan"
+              >
+                ↑
+              </button>
+              <button
+                style={idx === arrLength - 1 ? styles.reorderBtnDisabled : styles.reorderBtn}
+                disabled={idx === arrLength - 1}
+                onClick={onMoveDown}
+                title="Turunkan urutan"
+                aria-label="Turunkan urutan"
+              >
+                ↓
+              </button>
+              {sourceEvents.length === 1 && (
+                <>
+                  <button style={styles.editBtn} onClick={() => onEdit(sourceEvents[0])} title="Edit" aria-label="Edit">
+                    ✎
+                  </button>
+                  <button
+                    style={styles.duplicateBtn}
+                    onClick={() => onDuplicate(sourceEvents[0])}
+                    title="Duplikat"
+                    aria-label="Duplikat"
+                  >
+                    ⧉
+                  </button>
+                  <button
+                    style={styles.deleteBtn}
+                    onClick={() => onDelete(sourceEvents[0].id)}
+                    title="Hapus"
+                    aria-label="Hapus"
+                  >
+                    ✕
+                  </button>
+                </>
+              )}
+              {/* Pin di sisi kanan */}
+              <button
+                style={isPinned ? styles.pinBtnActive : styles.pinBtn}
+                onClick={onTogglePin}
+                title={isPinned ? "Lepas pin" : "Pin ke atas"}
+                aria-label={isPinned ? "Lepas pin" : "Pin ke atas"}
+              >
+                📌
+              </button>
+            </>
+          )}
+          {!isAdmin && isPinned && (
+            <span style={styles.pinBadge} title="Event unggulan">📌</span>
+          )}
+        </div>
       </div>
 
       {isAdmin && sourceEvents.length > 1 && (

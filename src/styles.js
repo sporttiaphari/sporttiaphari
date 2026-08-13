@@ -582,8 +582,14 @@ const styles = {
     padding: 0,
   },
   pinBadge: {
-    fontSize: 14,
-    marginRight: 2,
+    fontSize: 16,
+    lineHeight: 1,
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 28,
+    height: 28,
   },
   matchList: { display: "flex", flexDirection: "column", gap: 6 },
   courtLabel: {
