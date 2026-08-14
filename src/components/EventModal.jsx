@@ -33,30 +33,28 @@ export default function EventModal({
         <div className="jo-modal" style={styles.modal} onClick={(e) => e.stopPropagation()}>
           <div style={styles.modalTitle}>{editingEventId ? "Edit Event" : "Event Baru"}</div>
           <div style={styles.modalBody}>
-          <div className="jo-form-row">
-            <AutocompleteInput
-              style={styles.input}
-              placeholder="Nama event (mis. FIFA WORLD CUP 26)"
-              value={draft.name}
-              options={eventNameOptions}
-              transformOption={toUpperName}
-              onChange={(name) => {
-                const key = name.trim().toLowerCase();
-                const known = eventLogos[key] || eventLogos[name.trim().toLowerCase()];
-                setDraft((d) => ({
-                  ...d,
-                  name,
-                  logo: !d.logo && known ? known : d.logo,
-                }));
-              }}
-            />
-            <input
-              style={styles.input}
-              placeholder="Round / sub-event (opsional, mis. British Grand Prix)"
-              value={draft.round}
-              onChange={(e) => setDraft({ ...draft, round: e.target.value })}
-            />
-          </div>
+          <AutocompleteInput
+            style={styles.input}
+            placeholder="Nama event (mis. FIFA WORLD CUP 26)"
+            value={draft.name}
+            options={eventNameOptions}
+            transformOption={toUpperName}
+            onChange={(name) => {
+              const key = name.trim().toLowerCase();
+              const known = eventLogos[key] || eventLogos[name.trim().toLowerCase()];
+              setDraft((d) => ({
+                ...d,
+                name,
+                logo: !d.logo && known ? known : d.logo,
+              }));
+            }}
+          />
+          <input
+            style={styles.input}
+            placeholder="Round / sub-event (opsional, mis. British Grand Prix)"
+            value={draft.round}
+            onChange={(e) => setDraft({ ...draft, round: e.target.value })}
+          />
           <input
             type="date"
             style={styles.input}
