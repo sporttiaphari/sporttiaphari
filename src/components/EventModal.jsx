@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { uploadLogo } from "../db";
 import { styles } from "../styles";
 
@@ -8,6 +8,7 @@ export default function EventModal({
   draft,
   setDraft,
   eventLogos,
+  sports,
   saving,
   setSaving,
   setToast,
@@ -17,6 +18,17 @@ export default function EventModal({
   addDraftMatch,
   removeDraftMatch,
 }) {
+  const sportsList = Array.isArray(sports) && sports.length ? sports : [];
+  const sportValue = (draft.sport || "").trim();
+  const sportInList = sportsList.some((s) => s.toLowerCase() === sportValue.toLowerCase());
+  const useCustomSport = !!(sportValue && !sportInList);
+  const selectValue = useCustomSport ? "__other__" : sportValue;
+  const [showOther, setShowOther] = useState(false);
+
+  useEffect(() => {
+    if (open) setShowOther(!!(sportValue && !sportInList));
+  }, [open, editingEventId]);
+
   if (!open) return null;
 
   return (
@@ -53,6 +65,40 @@ export default function EventModal({
             value={draft.date}
             onChange={(e) => setDraft({ ...draft, date: e.target.value })}
           />
+
+          <div style={styles.matchEditorLabel}>Olahraga</div>
+          <select
+            style={{ ...styles.input, appearance: "auto", cursor: "pointer" }}
+            value={selectValue || (showOther ? "__other__" : "")}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "__other__") {
+                setShowOther(true);
+                // clear if previous was from list
+                if (sportInList || !sportValue) setDraft({ ...draft, sport: "" });
+              } else {
+                setShowOther(false);
+                setDraft({ ...draft, sport: v });
+              }
+            }}
+          >
+            <option value="">— Pilih olahraga —</option>
+            {sportsList.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+            <option value="__other__">Lainnya (tulis sendiri)…</option>
+          </select>
+          {(showOther || useCustomSport) && (
+            <input
+              style={styles.input}
+              placeholder="Tulis nama olahraga (mis. Voli, E-Sports)"
+              value={draft.sport || ""}
+              onChange={(e) => setDraft({ ...draft, sport: e.target.value })}
+            />
+          )}
+
           <label style={{ ...styles.uploadBtn, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Mengupload logo..." : "Upload Gambar Logo"}
             <input

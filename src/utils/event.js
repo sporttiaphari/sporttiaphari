@@ -21,6 +21,7 @@ export const emptyEvent = () => ({
   date: todayLocalDate(),
   order: Date.now(),
   pinned: false, // pin ke atas (prioritas hybrid)
+  sport: "", // kategori olahraga (untuk popularitas)
   matches: [emptyMatch()],
 });
 
@@ -38,7 +39,8 @@ export function normalizeEvent(ev, fallbackOrder) {
   }));
   const order = typeof ev.order === "number" ? ev.order : fallbackOrder || 0;
   const pinned = !!ev.pinned;
-  return { ...ev, broadcasters, matches, order, pinned };
+  const sport = typeof ev.sport === "string" ? ev.sport : "";
+  return { ...ev, broadcasters, matches, order, pinned, sport };
 }
 
 export function eventInitials(name) {

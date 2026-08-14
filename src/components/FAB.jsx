@@ -7,6 +7,7 @@ export default function FAB({
   setFabOpen,
   onOpenEventLogo,
   onOpenChannelLogo,
+  onOpenSports,
   onNewEvent,
 }) {
   if (!isAdmin) return null;
@@ -15,6 +16,16 @@ export default function FAB({
     <div style={styles.fabWrap}>
       {fabOpen && (
         <>
+          <button
+            style={styles.fabOption}
+            onClick={() => {
+              onOpenSports?.();
+              setFabOpen(false);
+            }}
+          >
+            <span style={styles.fabOptionLabel}>Popularitas Olahraga</span>
+            <span style={styles.fabOptionCircle}>🏆</span>
+          </button>
           <button
             style={styles.fabOption}
             onClick={() => {
