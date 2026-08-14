@@ -724,6 +724,7 @@ export default function JadwalOlahraga() {
         setDraft={setDraft}
         eventLogos={eventLogos}
         sports={sports}
+        channelLogos={customLogos}
         saving={saving}
         setSaving={setSaving}
         setToast={setToast}

@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { uploadLogo } from "../db";
 import { styles } from "../styles";
+import AutocompleteInput from "./AutocompleteInput";
+
+const toUpperName = (s) => (s || "").trim().toUpperCase();
 
 export default function EventModal({
   open,
@@ -9,6 +12,7 @@ export default function EventModal({
   setDraft,
   eventLogos,
   sports,
+  channelLogos,
   saving,
   setSaving,
   setToast,
@@ -18,18 +22,11 @@ export default function EventModal({
   addDraftMatch,
   removeDraftMatch,
 }) {
-  const sportsList = Array.isArray(sports) && sports.length ? sports : [];
-  const sportValue = (draft.sport || "").trim();
-  const sportInList = sportsList.some((s) => s.toLowerCase() === sportValue.toLowerCase());
-  const useCustomSport = !!(sportValue && !sportInList);
-  const selectValue = useCustomSport ? "__other__" : sportValue;
-  const [showOther, setShowOther] = useState(false);
-
-  useEffect(() => {
-    if (open) setShowOther(!!(sportValue && !sportInList));
-  }, [open, editingEventId]);
-
   if (!open) return null;
+
+  const sportsList = Array.isArray(sports) && sports.length ? sports : [];
+  const eventNameOptions = Object.keys(eventLogos || {});
+  const channelOptions = Object.keys(channelLogos || {});
 
   return (
       <div className="jo-overlay-center" style={styles.overlay} onClick={() => onClose()}>
@@ -37,14 +34,15 @@ export default function EventModal({
           <div style={styles.modalTitle}>{editingEventId ? "Edit Event" : "Event Baru"}</div>
           <div style={styles.modalBody}>
           <div className="jo-form-row">
-            <input
+            <AutocompleteInput
               style={styles.input}
               placeholder="Nama event (mis. FIFA WORLD CUP 26)"
               value={draft.name}
-              onChange={(e) => {
-                const name = e.target.value;
+              options={eventNameOptions}
+              transformOption={toUpperName}
+              onChange={(name) => {
                 const key = name.trim().toLowerCase();
-                const known = eventLogos[key];
+                const known = eventLogos[key] || eventLogos[name.trim().toLowerCase()];
                 setDraft((d) => ({
                   ...d,
                   name,
@@ -67,37 +65,14 @@ export default function EventModal({
           />
 
           <div style={styles.matchEditorLabel}>Olahraga</div>
-          <select
-            style={{ ...styles.input, appearance: "auto", cursor: "pointer" }}
-            value={selectValue || (showOther ? "__other__" : "")}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "__other__") {
-                setShowOther(true);
-                // clear if previous was from list
-                if (sportInList || !sportValue) setDraft({ ...draft, sport: "" });
-              } else {
-                setShowOther(false);
-                setDraft({ ...draft, sport: v });
-              }
-            }}
-          >
-            <option value="">— Pilih olahraga —</option>
-            {sportsList.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-            <option value="__other__">Lainnya (tulis sendiri)…</option>
-          </select>
-          {(showOther || useCustomSport) && (
-            <input
-              style={styles.input}
-              placeholder="Tulis nama olahraga (mis. Voli, E-Sports)"
-              value={draft.sport || ""}
-              onChange={(e) => setDraft({ ...draft, sport: e.target.value })}
-            />
-          )}
+          <AutocompleteInput
+            style={styles.input}
+            placeholder="Pilih atau ketik olahraga"
+            value={draft.sport || ""}
+            options={sportsList}
+            onChange={(sport) => setDraft({ ...draft, sport })}
+          />
+
 
           <label style={{ ...styles.uploadBtn, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Mengupload logo..." : "Upload Gambar Logo"}
@@ -153,16 +128,19 @@ export default function EventModal({
           </div>
           {draft.broadcasters.map((b, idx) => (
             <div key={idx} style={styles.channelRow}>
-              <input
-                style={styles.channelInput}
-                placeholder={idx === 0 ? "Live on (mis. RCTI, Vidio, ESPN)" : "Channel tambahan"}
-                value={b}
-                onChange={(e) => {
-                  const next = [...draft.broadcasters];
-                  next[idx] = e.target.value;
-                  setDraft({ ...draft, broadcasters: next });
-                }}
-              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <AutocompleteInput
+                  style={styles.channelInput}
+                  placeholder={idx === 0 ? "Live on (mis. RCTI, Vidio, ESPN)" : "Channel tambahan"}
+                  value={b}
+                  options={channelOptions}
+                  onChange={(val) => {
+                    const next = [...draft.broadcasters];
+                    next[idx] = val;
+                    setDraft({ ...draft, broadcasters: next });
+                  }}
+                />
+              </div>
               {draft.broadcasters.length > 1 && (
                 <button
                   type="button"
@@ -267,16 +245,19 @@ export default function EventModal({
               <div style={styles.matchEditorLabel}>Live On pertandingan ini</div>
               {m.liveOns.map((lv, lvIdx) => (
                 <div key={lvIdx} style={styles.channelRow}>
-                  <input
-                    style={styles.channelInput}
-                    placeholder={lvIdx === 0 ? "mis. Vidio" : "Channel tambahan"}
-                    value={lv}
-                    onChange={(e) => {
-                      const next = [...m.liveOns];
-                      next[lvIdx] = e.target.value;
-                      updateDraftMatch(m.id, "liveOns", next);
-                    }}
-                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <AutocompleteInput
+                      style={styles.channelInput}
+                      placeholder={lvIdx === 0 ? "mis. Vidio" : "Channel tambahan"}
+                      value={lv}
+                      options={channelOptions}
+                      onChange={(val) => {
+                        const next = [...m.liveOns];
+                        next[lvIdx] = val;
+                        updateDraftMatch(m.id, "liveOns", next);
+                      }}
+                    />
+                  </div>
                   {m.liveOns.length > 1 && (
                     <button
                       type="button"
