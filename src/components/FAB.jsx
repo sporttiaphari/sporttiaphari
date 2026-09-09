@@ -10,6 +10,8 @@ export default function FAB({
   onOpenSports,
   onOpenQris,
   onOpenNav,
+  onOpenContributors,
+  onOpenHeader,
   onNewEvent,
 }) {
   if (!isAdmin) return null;
@@ -47,6 +49,26 @@ export default function FAB({
           >
             <span style={styles.fabOptionLabel}>Nama Tab Halaman</span>
             <span style={styles.fabOptionCircle}>☰</span>
+          </button>
+          <button
+            style={styles.fabOption}
+            onClick={() => {
+              onOpenContributors?.();
+              setFabOpen(false);
+            }}
+          >
+            <span style={styles.fabOptionLabel}>Akses Kontributor</span>
+            <span style={styles.fabOptionCircle}>👤</span>
+          </button>
+          <button
+            style={styles.fabOption}
+            onClick={() => {
+              onOpenHeader?.();
+              setFabOpen(false);
+            }}
+          >
+            <span style={styles.fabOptionLabel}>Edit Header</span>
+            <span style={styles.fabOptionCircle}>Aa</span>
           </button>
           <button
             style={styles.fabOption}

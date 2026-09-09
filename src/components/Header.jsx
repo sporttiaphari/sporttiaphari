@@ -5,6 +5,7 @@ export default function Header({
   headerRef,
   scrolled,
   brandLogo,
+  headerContent,
   isAdmin,
   page,
   navLabels,
@@ -14,6 +15,7 @@ export default function Header({
   onLogoClick,
   onChangePage,
   onEditNav,
+  onEditHeader,
   onToggleSearch,
   onOpenInbox,
   onLockAdmin,
@@ -22,6 +24,14 @@ export default function Header({
   const isMajor = page === "major";
   const dailyLabel = navLabels?.daily || "Harian";
   const majorLabel = navLabels?.major || "Event Besar";
+  const eyebrow = headerContent?.eyebrow || (isMajor ? majorLabel.toUpperCase() : "JADWAL OLAHRAGA");
+  const headline = headerContent?.headline || "@sporttiaphari";
+  const note = headerContent?.note || (
+    isMajor
+      ? "Dashboard event-event besar. Jam otomatis disesuaikan ke zona waktu perangkat kamu."
+      : "Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan. Jam pertandingan otomatis disesuaikan ke zona waktu perangkat kamu."
+  );
+  const logoSrc = headerContent?.logo || brandLogo;
   return (
     <header
       ref={headerRef}
@@ -30,7 +40,7 @@ export default function Header({
     >
       <div style={styles.brandRow}>
         <img
-          src={brandLogo}
+          src={logoSrc}
           alt="@sporttiaphari"
           style={scrolled ? styles.brandLogoSmall : styles.brandLogo}
           onClick={onLogoClick}
@@ -38,21 +48,22 @@ export default function Header({
         {scrolled ? (
           <div style={{ ...styles.headlineCompactRow, minWidth: 0, flex: 1 }}>
             <div style={styles.headlineCompact}>
-              {isMajor ? `${majorLabel.toUpperCase()} @sporttiaphari` : "JADWAL OLAHRAGA @sporttiaphari"}
+              {eyebrow} {headline}
             </div>
             {isAdmin && <span style={styles.devDot} title="Developer Mode aktif" />}
           </div>
         ) : (
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={styles.eyebrow}>{isMajor ? majorLabel.toUpperCase() : "JADWAL OLAHRAGA"}</div>
-            <div style={styles.headline}>@sporttiaphari</div>
-            <div style={styles.headerNote}>
-              {isMajor
-                ? "Dashboard event-event besar. Jam otomatis disesuaikan ke zona waktu perangkat kamu."
-                : "Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan. Jam pertandingan otomatis disesuaikan ke zona waktu perangkat kamu."}
-            </div>
+            <div style={styles.eyebrow}>{eyebrow}</div>
+            <div style={styles.headline}>{headline}</div>
+            <div style={styles.headerNote}>{note}</div>
             {isAdmin && (
-              <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>
+                <button type="button" style={styles.devToggleBtn} onClick={onEditHeader}>
+                  Edit header
+                </button>
+              </div>
             )}
           </div>
         )}

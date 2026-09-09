@@ -147,3 +147,71 @@ create policy "Admin delete logos"
     bucket_id = 'logos'
     and (auth.jwt() ->> 'email') = 'sporttiaphari@outlook.com'
   );
+
+
+-- ============================================================
+-- 4. Multi-admin: email di VITE_ADMIN_EMAIL + list kv_store.adminEmails
+-- Jalankan bagian ini kalau mau kontributor lain bisa TULIS data.
+-- Ganti email utama jika perlu.
+-- ============================================================
+
+create or replace function public.is_schedule_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    lower(coalesce(auth.jwt() ->> 'email', '')) = 'sporttiaphari@outlook.com'
+    or exists (
+      select 1
+      from kv_store
+      where key = 'adminEmails'
+        and value @> to_jsonb(lower(coalesce(auth.jwt() ->> 'email', '')))
+    );
+$$;
+
+drop policy if exists "only admin can insert kv_store" on kv_store;
+drop policy if exists "only admin can update kv_store" on kv_store;
+drop policy if exists "only admin can delete kv_store" on kv_store;
+
+create policy "only admin can insert kv_store"
+  on kv_store for insert
+  with check (public.is_schedule_admin());
+
+create policy "only admin can update kv_store"
+  on kv_store for update
+  using (public.is_schedule_admin())
+  with check (public.is_schedule_admin());
+
+create policy "only admin can delete kv_store"
+  on kv_store for delete
+  using (public.is_schedule_admin());
+
+drop policy if exists "admin can read suggestions" on suggestions;
+drop policy if exists "admin can delete suggestions" on suggestions;
+
+create policy "admin can read suggestions"
+  on suggestions for select
+  using (public.is_schedule_admin());
+
+create policy "admin can delete suggestions"
+  on suggestions for delete
+  using (public.is_schedule_admin());
+
+drop policy if exists "Admin upload logos" on storage.objects;
+drop policy if exists "Admin update logos" on storage.objects;
+drop policy if exists "Admin delete logos" on storage.objects;
+
+create policy "Admin upload logos"
+  on storage.objects for insert
+  with check (bucket_id = 'logos' and public.is_schedule_admin());
+
+create policy "Admin update logos"
+  on storage.objects for update
+  using (bucket_id = 'logos' and public.is_schedule_admin());
+
+create policy "Admin delete logos"
+  on storage.objects for delete
+  using (bucket_id = 'logos' and public.is_schedule_admin());
