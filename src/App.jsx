@@ -15,6 +15,7 @@ import { emptyMatch, emptyEvent, normalizeEvent, eventInitials, readImageFile } 
 import { DEFAULT_SPORTS, normalizeSports, sportRank, addSportToList } from "./utils/sports";
 import { PAGE_DAILY, PAGE_MAJOR, pageFromHash, hashForPage, kvKeys } from "./utils/pages";
 import { DEFAULT_HEADERS, normalizeHeaders } from "./utils/header";
+import { mergeEventArrays, mergeMaps } from "./utils/sync";
 import { makeLogoLookup } from "./utils/logos";
 import { fontImports, styles } from "./styles";
 import Header from "./components/Header";
@@ -339,7 +340,8 @@ export default function JadwalOlahraga() {
       if (url.startsWith("data:")) {
         url = await uploadLogo(url, "channels");
       }
-      const next = { ...customLogos, [name]: url };
+      const latestCh = (await getKV("broadcasterLogos")) || {};
+      const next = { ...latestCh, ...customLogos, [name]: url };
       setCustomLogos(next);
       setLogoNameInput("");
       setLogoUrlInput("");
@@ -425,6 +427,8 @@ export default function JadwalOlahraga() {
     const unsubEvents = subscribeKV(k.events, (value) => {
       const list = Array.isArray(value) ? value : [];
       setEvents(list.map((ev, idx) => normalizeEvent(ev, idx)));
+      setToast("Jadwal disinkronkan");
+      setTimeout(() => setToast(""), 1500);
     });
     return () => {
       cancelled = true;
@@ -435,12 +439,17 @@ export default function JadwalOlahraga() {
   }, [page]);
 
   const persist = async (next) => {
+    const prev = events;
+    const k = kvKeys(page);
     setEvents(next);
     try {
-      await setKV(kvKeys(page).events, next);
+      const latest = await getKV(k.events);
+      const merged = mergeEventArrays(Array.isArray(latest) ? latest : [], next, prev);
+      await setKV(k.events, merged);
+      setEvents(merged.map((ev, idx) => normalizeEvent(ev, idx)));
     } catch (e) {
-      setToast("Gagal simpan");
-      setTimeout(() => setToast(""), 2000);
+      setToast(e.message || "Gagal simpan");
+      setTimeout(() => setToast(""), 2500);
     }
   };
 
@@ -799,13 +808,7 @@ export default function JadwalOlahraga() {
     const next = events.map((e) =>
       e.id === eventId ? { ...e, pinned: !e.pinned } : e
     );
-    setEvents(next);
-    try {
-      await setKV(kvKeys(page).events, next);
-    } catch (err) {
-      setToast(err.message || "Gagal simpan pin");
-      setTimeout(() => setToast(""), 3000);
-    }
+    await persist(next);
   };
 
   const moveEventInDate = async (date, groupEventId, direction) => {
