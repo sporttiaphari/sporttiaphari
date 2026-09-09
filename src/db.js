@@ -17,7 +17,10 @@ export async function getKV(key) {
 export async function setKV(key, value) {
   const { error } = await supabase
     .from("kv_store")
-    .upsert({ key, value, updated_at: new Date().toISOString() });
+    .upsert(
+      { key, value, updated_at: new Date().toISOString() },
+      { onConflict: "key" }
+    );
   if (error) throw error;
 }
 

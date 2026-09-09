@@ -247,13 +247,24 @@ export default function JadwalOlahraga() {
       } catch (e) { /* none */ }
       try {
         const hd = await getKV("pageHeaders");
-        setPageHeaders(normalizeHeaders(hd));
+        if (hd && typeof hd === "object") setPageHeaders(normalizeHeaders(hd));
+      } catch (e) { /* defaults */ }
+      try {
+        const nl = await getKV("navLabels");
+        if (nl && typeof nl === "object") {
+          setNavLabels({
+            daily: (nl.daily || "").trim() || "Harian",
+            major: (nl.major || "").trim() || "Event Besar",
+          });
+        }
       } catch (e) { /* defaults */ }
     })();
 
     const unsubBroadcaster = subscribeKV("broadcasterLogos", (value) => setCustomLogos(value || {}));
     const unsubQris = subscribeKV("qrisUrl", (value) => setQrisUrl(typeof value === "string" ? value : ""));
-    const unsubHeaders = subscribeKV("pageHeaders", (value) => setPageHeaders(normalizeHeaders(value)));
+    const unsubHeaders = subscribeKV("pageHeaders", (value) => {
+      if (value && typeof value === "object") setPageHeaders(normalizeHeaders(value));
+    });
     const unsubAdmins = subscribeKV("adminEmails", (value) => {
       if (Array.isArray(value)) {
         setContributorEmails(value.map((x) => String(x).trim().toLowerCase()).filter(Boolean));
@@ -674,20 +685,26 @@ export default function JadwalOlahraga() {
 
   const savePageHeader = async (nextOne) => {
     if (!isAdmin) return;
+    const pageKey = page === PAGE_MAJOR ? "major" : "daily";
     const merged = normalizeHeaders({
       ...pageHeaders,
-      [page]: nextOne,
+      [pageKey]: nextOne,
     });
     setSaving(true);
     try {
       await setKV("pageHeaders", merged);
-      setPageHeaders(merged);
+      const check = await getKV("pageHeaders");
+      if (!check || typeof check !== "object") {
+        throw new Error("Header tidak tertahan di database. Coba login ulang.");
+      }
+      const confirmed = normalizeHeaders(check);
+      setPageHeaders(confirmed);
       setHeaderSettingsOpen(false);
       setToast("Header disimpan");
       setTimeout(() => setToast(""), 2000);
     } catch (err) {
       setToast(err.message || "Gagal simpan header");
-      setTimeout(() => setToast(""), 3000);
+      setTimeout(() => setToast(""), 4000);
     } finally {
       setSaving(false);
     }
@@ -715,16 +732,27 @@ export default function JadwalOlahraga() {
 
   const saveNavLabels = async (next) => {
     if (!isAdmin) return;
+    const payload = {
+      daily: (next?.daily || "").trim() || "Harian",
+      major: (next?.major || "").trim() || "Event Besar",
+    };
     setSaving(true);
     try {
-      await setKV("navLabels", next);
-      setNavLabels(next);
+      await setKV("navLabels", payload);
+      const check = await getKV("navLabels");
+      if (!check || typeof check !== "object") {
+        throw new Error("Nama tab tidak tertahan di database. Coba login ulang.");
+      }
+      setNavLabels({
+        daily: (check.daily || "").trim() || payload.daily,
+        major: (check.major || "").trim() || payload.major,
+      });
       setNavSettingsOpen(false);
       setToast("Nama tab disimpan");
       setTimeout(() => setToast(""), 2000);
     } catch (err) {
       setToast(err.message || "Gagal simpan nama tab");
-      setTimeout(() => setToast(""), 3000);
+      setTimeout(() => setToast(""), 4000);
     } finally {
       setSaving(false);
     }
