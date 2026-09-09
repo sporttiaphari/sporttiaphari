@@ -6,15 +6,22 @@ export default function Header({
   scrolled,
   brandLogo,
   isAdmin,
+  page,
+  navLabels,
   searchOpen,
   searchQuery,
   suggestionsCount,
   onLogoClick,
+  onChangePage,
+  onEditNav,
   onToggleSearch,
   onOpenInbox,
   onLockAdmin,
   onOpenSuggest,
 }) {
+  const isMajor = page === "major";
+  const dailyLabel = navLabels?.daily || "Harian";
+  const majorLabel = navLabels?.major || "Event Besar";
   return (
     <header
       ref={headerRef}
@@ -30,16 +37,19 @@ export default function Header({
         />
         {scrolled ? (
           <div style={{ ...styles.headlineCompactRow, minWidth: 0, flex: 1 }}>
-            <div style={styles.headlineCompact}>JADWAL OLAHRAGA @sporttiaphari</div>
+            <div style={styles.headlineCompact}>
+              {isMajor ? `${majorLabel.toUpperCase()} @sporttiaphari` : "JADWAL OLAHRAGA @sporttiaphari"}
+            </div>
             {isAdmin && <span style={styles.devDot} title="Developer Mode aktif" />}
           </div>
         ) : (
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={styles.eyebrow}>JADWAL OLAHRAGA</div>
+            <div style={styles.eyebrow}>{isMajor ? majorLabel.toUpperCase() : "JADWAL OLAHRAGA"}</div>
             <div style={styles.headline}>@sporttiaphari</div>
             <div style={styles.headerNote}>
-              Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan. Jam
-              pertandingan otomatis disesuaikan ke zona waktu perangkat kamu.
+              {isMajor
+                ? "Dashboard event-event besar. Jam otomatis disesuaikan ke zona waktu perangkat kamu."
+                : "Jadwal olahraga dapat berubah sewaktu-waktu dengan atau tanpa pemberitahuan. Jam pertandingan otomatis disesuaikan ke zona waktu perangkat kamu."}
             </div>
             {isAdmin && (
               <div style={styles.publicBadge}>● DEVELOPER MODE — kamu bisa edit & hapus</div>
@@ -48,6 +58,33 @@ export default function Header({
         )}
       </div>
       <div style={styles.headerActions}>
+        <div style={styles.pageTabs}>
+          <button
+            type="button"
+            style={!isMajor ? styles.pageTabActive : styles.pageTab}
+            onClick={() => onChangePage("daily")}
+          >
+            {dailyLabel}
+          </button>
+          <button
+            type="button"
+            style={isMajor ? styles.pageTabActive : styles.pageTab}
+            onClick={() => onChangePage("major")}
+          >
+            {majorLabel}
+          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              style={styles.pageTab}
+              onClick={onEditNav}
+              title="Ubah nama tab"
+              aria-label="Ubah nama tab"
+            >
+              ✎
+            </button>
+          )}
+        </div>
         <button
           style={{
             ...(isAdmin ? styles.lockBtn : styles.devToggleBtn),

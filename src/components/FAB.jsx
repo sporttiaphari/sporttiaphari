@@ -9,6 +9,7 @@ export default function FAB({
   onOpenChannelLogo,
   onOpenSports,
   onOpenQris,
+  onOpenNav,
   onNewEvent,
 }) {
   if (!isAdmin) return null;
@@ -36,6 +37,16 @@ export default function FAB({
           >
             <span style={styles.fabOptionLabel}>Gambar QRIS</span>
             <span style={styles.fabOptionCircle}>QR</span>
+          </button>
+          <button
+            style={styles.fabOption}
+            onClick={() => {
+              onOpenNav?.();
+              setFabOpen(false);
+            }}
+          >
+            <span style={styles.fabOptionLabel}>Nama Tab Halaman</span>
+            <span style={styles.fabOptionCircle}>☰</span>
           </button>
           <button
             style={styles.fabOption}
