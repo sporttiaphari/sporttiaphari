@@ -1,5 +1,23 @@
 import { todayLocalDate } from "./date";
 
+export const MEDAL_OPTIONS = [
+  { value: "", label: "Bukan medali", emoji: "" },
+  { value: "gold", label: "Emas", emoji: "🥇" },
+  { value: "silver", label: "Perak", emoji: "🥈" },
+  { value: "bronze", label: "Perunggu", emoji: "🥉" },
+];
+
+export function normalizeMedal(value) {
+  if (value === "gold" || value === "silver" || value === "bronze") return value;
+  return "";
+}
+
+export function medalEmoji(value) {
+  const found = MEDAL_OPTIONS.find((o) => o.value === value);
+  return found?.emoji || "";
+}
+
+
 export const emptyMatch = () => ({
   id: crypto.randomUUID(),
   time: "",
@@ -9,6 +27,7 @@ export const emptyMatch = () => ({
   court: "",
   liveOns: [""],
   followedBy: false,
+  medal: "", // "" | "gold" | "silver" | "bronze"
 });
 
 export const emptyEvent = () => ({
@@ -36,6 +55,7 @@ export function normalizeEvent(ev, fallbackOrder) {
   const matches = (ev.matches || []).map((m) => ({
     ...m,
     liveOns: m.liveOns && m.liveOns.length ? m.liveOns : m.liveOn ? [m.liveOn] : [""],
+    medal: normalizeMedal(m.medal),
   }));
   const order = typeof ev.order === "number" ? ev.order : fallbackOrder || 0;
   const pinned = !!ev.pinned;

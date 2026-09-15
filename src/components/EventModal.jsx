@@ -2,11 +2,13 @@ import React from "react";
 import { uploadLogo } from "../db";
 import { styles } from "../styles";
 import AutocompleteInput from "./AutocompleteInput";
+import { MEDAL_OPTIONS } from "../utils/event";
 
 const toUpperName = (s) => (s || "").trim().toUpperCase();
 
 export default function EventModal({
   open,
+  page,
   editingEventId,
   draft,
   setDraft,
@@ -234,6 +236,20 @@ export default function EventModal({
                 />
                 {" "}FB (mengikuti pertandingan sebelumnya, tanpa jam pasti)
               </label>
+              <div style={styles.medalToggle}>
+                <span>Medali</span>
+                <select
+                  style={styles.medalSelect}
+                  value={m.medal || ""}
+                  onChange={(e) => updateDraftMatch(m.id, "medal", e.target.value)}
+                >
+                  {MEDAL_OPTIONS.map((opt) => (
+                    <option key={opt.value || "none"} value={opt.value}>
+                      {opt.emoji ? `${opt.emoji} ${opt.label}` : opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <input
                 style={styles.courtInput}
                 placeholder="Court/lapangan (opsional, mis. Court 1) — buat pisahin section"

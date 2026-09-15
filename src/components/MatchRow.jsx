@@ -1,5 +1,6 @@
 import React from "react";
 import { formatLocalTime } from "../utils/date";
+import { medalEmoji } from "../utils/event";
 import { styles } from "../styles";
 
 export default function MatchRow({ match, eventDate, eventFormat, lookupBroadcasterLogo }) {
@@ -13,6 +14,21 @@ export default function MatchRow({ match, eventDate, eventFormat, lookupBroadcas
           {m.followedBy ? "FB" : formatLocalTime(sourceDate, m.time)}
         </span>
         <span style={styles.matchTeams}>
+          {medalEmoji(m.medal) ? (
+            <span
+              style={styles.medalMark}
+              title={
+                m.medal === "gold"
+                  ? "Gold medal event"
+                  : m.medal === "silver"
+                  ? "Silver medal event"
+                  : "Bronze medal event"
+              }
+              aria-label="Medal event"
+            >
+              {medalEmoji(m.medal)}
+            </span>
+          ) : null}
           {eventFormat === "single" ? (
             m.title
           ) : (
